@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/mongodb";
+import { getUserFromSession } from "@/lib/auth";
+import { readScopedConfig } from "@/lib/scoped-config";
+
+type OrderSegment = {
+  key: string;
+  label: string;
+};
 
 type OrderRow = {
   id: string;
+  segmentKey: string;
   symbol: string;
   side: "BUY" | "SELL";
   qty: number;
@@ -18,6 +25,7 @@ type OrdersConfig = {
     dayPnl: number;
     totalPnl: number;
   };
+  segments: OrderSegment[];
   orders: OrderRow[];
 };
 
@@ -26,9 +34,17 @@ const defaultConfig: OrdersConfig = {
     dayPnl: 1250,
     totalPnl: -4200,
   },
+  segments: [
+    { key: "positions", label: "Positions" },
+    { key: "openOrders", label: "Open Orders" },
+    { key: "baskets", label: "Baskets" },
+    { key: "stockSip", label: "Stock SIP" },
+    { key: "gtt", label: "GTT" },
+  ],
   orders: [
     {
       id: "1",
+      segmentKey: "positions",
       symbol: "RELIANCE",
       side: "BUY",
       qty: 10,
@@ -40,6 +56,7 @@ const defaultConfig: OrdersConfig = {
     },
     {
       id: "2",
+      segmentKey: "openOrders",
       symbol: "TCS",
       side: "SELL",
       qty: 5,
@@ -51,6 +68,7 @@ const defaultConfig: OrdersConfig = {
     },
     {
       id: "3",
+      segmentKey: "positions",
       symbol: "HDFCBANK",
       side: "BUY",
       qty: 20,
@@ -65,14 +83,24 @@ const defaultConfig: OrdersConfig = {
 
 export async function GET() {
   try {
-    const db = await getDb();
-    const settings = db.collection("settings");
+    const user = await getUserFromSession();
+    const userId = (user as { _id?: { toString(): string } } | null)?._id?.toString();
 
-    const doc = await settings.findOne<{ value?: OrdersConfig }>({
+    const { config } = await readScopedConfig<OrdersConfig>({
       key: "dashboard_orders",
+      userId: userId || null,
+      fallback: defaultConfig,
     });
 
-    return NextResponse.json({ config: doc?.value || defaultConfig });
+    return NextResponse.json({
+      config: {
+        ...config,
+        segments:
+          Array.isArray(config.segments) && config.segments.length > 0
+            ? config.segments
+            : defaultConfig.segments,
+      },
+    });
   } catch (error) {
     console.error("Config orders error:", error);
     return NextResponse.json(

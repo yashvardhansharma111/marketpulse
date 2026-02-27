@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/mongodb";
+import { deleteScopedConfig, readScopedConfig, upsertScopedConfig } from "@/lib/scoped-config";
 
 type HomeConfig = {
   indices?: Array<{
@@ -28,21 +28,26 @@ async function requireAdmin() {
   return !!adminCookie && adminCookie.value === "ok";
 }
 
-export async function GET() {
+function getScopeUserId(request: Request) {
+  const { searchParams } = new URL(request.url);
+  return searchParams.get("scopeUserId");
+}
+
+export async function GET(request: Request) {
   try {
     const ok = await requireAdmin();
     if (!ok) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const db = await getDb();
-    const settings = db.collection("settings");
-
-    const doc = await settings.findOne<{ value?: HomeConfig }>({
+    const scopeUserId = getScopeUserId(request);
+    const { config, source } = await readScopedConfig<HomeConfig>({
       key: "dashboard_home",
+      userId: scopeUserId,
+      fallback: { indices: [], stocks: [] },
     });
 
-    return NextResponse.json({ config: doc?.value || null });
+    return NextResponse.json({ config, source, scopeUserId: scopeUserId || null });
   } catch (error) {
     console.error("Admin dashboard home get error:", error);
     return NextResponse.json(
@@ -59,7 +64,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const body = (await request.json()) as { config?: HomeConfig };
+    const body = (await request.json()) as {
+      config?: HomeConfig;
+      scopeUserId?: string | null;
+    };
     const config = body?.config;
 
     if (!config) {
@@ -69,20 +77,37 @@ export async function POST(request: Request) {
       );
     }
 
-    const db = await getDb();
-    const settings = db.collection("settings");
-
-    await settings.updateOne(
-      { key: "dashboard_home" },
-      { $set: { value: config, updatedAt: new Date() } },
-      { upsert: true },
-    );
+    await upsertScopedConfig<HomeConfig>({
+      key: "dashboard_home",
+      userId: body.scopeUserId || null,
+      config,
+    });
 
     return NextResponse.json({ message: "Dashboard home updated" });
   } catch (error) {
     console.error("Admin dashboard home save error:", error);
     return NextResponse.json(
       { message: "Failed to save dashboard home" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const ok = await requireAdmin();
+    if (!ok) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
+    const scopeUserId = getScopeUserId(request);
+    await deleteScopedConfig({ key: "dashboard_home", userId: scopeUserId });
+
+    return NextResponse.json({ message: "Dashboard home config deleted" });
+  } catch (error) {
+    console.error("Admin dashboard home delete error:", error);
+    return NextResponse.json(
+      { message: "Failed to delete dashboard home" },
       { status: 500 },
     );
   }

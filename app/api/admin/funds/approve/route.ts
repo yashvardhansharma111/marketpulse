@@ -32,6 +32,7 @@ export async function POST(request: Request) {
       _id: ObjectId;
       userId: ObjectId;
       amount: number;
+      type?: "add" | "withdraw";
       status: string;
     }>({
       _id: new ObjectId(requestId),
@@ -51,10 +52,14 @@ export async function POST(request: Request) {
       );
     }
 
+    const requestType = requestDoc.type || "add";
+    const balanceDelta =
+      requestType === "withdraw" ? -Math.abs(requestDoc.amount) : requestDoc.amount;
+
     await users.updateOne(
       { _id: new ObjectId(requestDoc.userId) },
       {
-        $inc: { tradingBalance: requestDoc.amount },
+        $inc: { tradingBalance: balanceDelta },
         $set: { updatedAt: new Date() },
       },
     );
@@ -66,7 +71,12 @@ export async function POST(request: Request) {
       },
     );
 
-    return NextResponse.json({ message: "Fund approved and balance updated" });
+    return NextResponse.json({
+      message:
+        requestType === "withdraw"
+          ? "Withdrawal approved and balance updated"
+          : "Fund approved and balance updated",
+    });
   } catch (error) {
     console.error("Admin approve fund error:", error);
     return NextResponse.json(
@@ -75,4 +85,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

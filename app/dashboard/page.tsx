@@ -1,14 +1,23 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AiFillHome } from "react-icons/ai";
 import { BsBookmarkStarFill } from "react-icons/bs";
-import { FaChartBar, FaCoins, FaRegUserCircle } from "react-icons/fa";
+import {
+  FaChartBar,
+  FaCoins,
+  FaRegUserCircle,
+  FaChevronDown,
+  FaChevronRight,
+  FaSignOutAlt,
+  FaCog,
+  FaRegEdit,
+} from "react-icons/fa";
 import { HiReceiptPercent } from "react-icons/hi2";
-import { MdAccountBalanceWallet } from "react-icons/md";
+import { MdAccountBalanceWallet, MdOutlineManageAccounts } from "react-icons/md";
 import { PiBankFill } from "react-icons/pi";
 
-type TabKey = "home" | "watchlist" | "orders" | "funds" | "profile";
+type TabKey = "home" | "watchlist" | "orders" | "funds" | "profile" | "settings";
 
 type DashboardUser = {
   fullName?: string;
@@ -44,28 +53,9 @@ type HomeConfig = {
   }>;
 };
 
-type WatchlistItem = {
-  symbol: string;
-  name?: string;
-  ltp: number;
-  change: number;
-  changePct: number;
-  details?: {
-    about?: string;
-    open?: number;
-    high?: number;
-    low?: number;
-    prevClose?: number;
-    chart?: Array<{ x: string; y: number }>;
-  };
-};
-
-type WatchlistConfig = {
-  items: WatchlistItem[];
-};
-
 type OrderRow = {
   id: string;
+  segmentKey: string;
   symbol: string;
   side: "BUY" | "SELL";
   qty: number;
@@ -81,7 +71,29 @@ type OrdersConfig = {
     dayPnl: number;
     totalPnl: number;
   };
+  segments: Array<{
+    key: string;
+    label: string;
+  }>;
   orders: OrderRow[];
+};
+
+type FundPaymentMeta = {
+  upiId?: string | null;
+  bankName?: string | null;
+  accountHolder?: string | null;
+  accountNumber?: string | null;
+  ifsc?: string | null;
+};
+
+type MarketCard = {
+  symbol: string;
+  name: string;
+  price: number;
+  yearlyChange: number;
+  yearlyChangePct: number;
+  chartBase: number;
+  chartWiggle: number;
 };
 
 export default function DashboardPage() {
@@ -96,10 +108,27 @@ export default function DashboardPage() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [ordersConfig, setOrdersConfig] = useState<OrdersConfig | null>(null);
   const [showIndexPopup, setShowIndexPopup] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [userPhotoUrl, setUserPhotoUrl] = useState<string | null>(null);
+  const [userPhotoFailed, setUserPhotoFailed] = useState(false);
   const [activeShortcut, setActiveShortcut] = useState<
     "ipo" | "mutual" | "etf" | "sgb"
   >("ipo");
   const [chartTick, setChartTick] = useState(0);
+  const [selectedGlobalSymbol, setSelectedGlobalSymbol] = useState("AAPL");
+  const [selectedCryptoSymbol, setSelectedCryptoSymbol] = useState("BTCUSD");
+  const [activeOrderTool, setActiveOrderTool] = useState("positions");
+  const [showOrderGainSheet, setShowOrderGainSheet] = useState(true);
+  const [showAddFundsModal, setShowAddFundsModal] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [fundMethod, setFundMethod] = useState<"upi" | "netbanking">("upi");
+  const [paymentMeta, setPaymentMeta] = useState<FundPaymentMeta | null>(null);
+  const [activeReport, setActiveReport] = useState<string | null>(null);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawMessage, setWithdrawMessage] = useState<string | null>(null);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
   const [fundAmount, setFundAmount] = useState("");
   const [fundReference, setFundReference] = useState("");
@@ -143,10 +172,37 @@ export default function DashboardPage() {
           tradingBalance: meData.user.tradingBalance ?? 0,
           margin: meData.user.margin ?? 0,
         });
+        setUserPhotoUrl(`/api/auth/photo?t=${Date.now()}`);
+        setUserPhotoFailed(false);
         setQrUrl(qrData.qrUrl || null);
+        setPaymentMeta(qrData.paymentMeta || null);
         setQrImgFailed(false);
         setHomeConfig(homeData.config || null);
-        setOrdersConfig(ordersData.config || null);
+        const incomingOrders = ordersData.config || null;
+        setOrdersConfig(
+          incomingOrders
+            ? {
+                ...incomingOrders,
+                segments:
+                  Array.isArray(incomingOrders.segments) &&
+                  incomingOrders.segments.length > 0
+                    ? incomingOrders.segments
+                    : [
+                        { key: "positions", label: "Positions" },
+                        { key: "openOrders", label: "Open Orders" },
+                        { key: "baskets", label: "Baskets" },
+                        { key: "stockSip", label: "Stock SIP" },
+                        { key: "gtt", label: "GTT" },
+                      ],
+                orders: Array.isArray(incomingOrders.orders)
+                  ? incomingOrders.orders.map((row: OrderRow) => ({
+                      ...row,
+                      segmentKey: row.segmentKey || "positions",
+                    }))
+                  : [],
+              }
+            : null,
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Something went wrong";
         setError(msg);
@@ -171,9 +227,186 @@ export default function DashboardPage() {
     return () => window.clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    function onPointerDown(event: MouseEvent) {
+      if (!profileMenuRef.current) return;
+      if (!profileMenuRef.current.contains(event.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    }
+
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, []);
+
+  useEffect(() => {
+    const firstSegment = ordersConfig?.segments?.[0]?.key;
+    if (firstSegment) {
+      setActiveOrderTool(firstSegment);
+    }
+  }, [ordersConfig]);
+
   const money = useMemo(() => {
     return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
   }, []);
+
+  const globalMarkets = useMemo<MarketCard[]>(
+    () => [
+      {
+        symbol: "AAPL",
+        name: "Apple Inc",
+        price: 272.95,
+        yearlyChange: 32.59,
+        yearlyChangePct: 13.56,
+        chartBase: 236,
+        chartWiggle: 55,
+      },
+      {
+        symbol: "GOOGL",
+        name: "Alphabet Inc",
+        price: 176.82,
+        yearlyChange: 19.27,
+        yearlyChangePct: 12.23,
+        chartBase: 163,
+        chartWiggle: 42,
+      },
+      {
+        symbol: "MSFT",
+        name: "Microsoft",
+        price: 418.11,
+        yearlyChange: 68.5,
+        yearlyChangePct: 19.59,
+        chartBase: 368,
+        chartWiggle: 78,
+      },
+      {
+        symbol: "TSLA",
+        name: "Tesla",
+        price: 186.2,
+        yearlyChange: -24.15,
+        yearlyChangePct: -11.48,
+        chartBase: 212,
+        chartWiggle: 85,
+      },
+    ],
+    [],
+  );
+
+  const cryptoMarkets = useMemo<MarketCard[]>(
+    () => [
+      {
+        symbol: "BTCUSD",
+        name: "Bitcoin / U.S. Dollar",
+        price: 67836,
+        yearlyChange: -16803,
+        yearlyChangePct: -19.85,
+        chartBase: 91500,
+        chartWiggle: 30000,
+      },
+      {
+        symbol: "ETHUSD",
+        name: "Ethereum / U.S. Dollar",
+        price: 3490,
+        yearlyChange: -604,
+        yearlyChangePct: -14.76,
+        chartBase: 3650,
+        chartWiggle: 1300,
+      },
+      {
+        symbol: "XRPUSD",
+        name: "Ripple / U.S. Dollar",
+        price: 0.62,
+        yearlyChange: 0.12,
+        yearlyChangePct: 24.0,
+        chartBase: 0.56,
+        chartWiggle: 0.34,
+      },
+      {
+        symbol: "LTCUSD",
+        name: "Litecoin / U.S. Dollar",
+        price: 91.55,
+        yearlyChange: 5.92,
+        yearlyChangePct: 6.91,
+        chartBase: 85,
+        chartWiggle: 34,
+      },
+    ],
+    [],
+  );
+
+  const selectedGlobalMarket =
+    globalMarkets.find((item) => item.symbol === selectedGlobalSymbol) ||
+    globalMarkets[0];
+  const selectedCryptoMarket =
+    cryptoMarkets.find((item) => item.symbol === selectedCryptoSymbol) ||
+    cryptoMarkets[0];
+  const fundPresets = [2300, 1800, 1100, 900];
+  const reportCards = [
+    {
+      title: "Trades and Charges",
+      description: "View all your trades and brokerage details",
+    },
+    {
+      title: "Profit & Loss",
+      description: "Track your portfolio performance",
+    },
+    {
+      title: "Statement / Ledger",
+      description: "Download your account statement",
+    },
+    {
+      title: "Fund Transactions",
+      description: "View all your fund transfers",
+    },
+    {
+      title: "Monthly Report",
+      description: "Get your monthly summary",
+    },
+  ];
+  const orderSegments =
+    ordersConfig?.segments && ordersConfig.segments.length > 0
+      ? ordersConfig.segments
+      : [
+          { key: "positions", label: "Positions" },
+          { key: "openOrders", label: "Open Orders" },
+          { key: "baskets", label: "Baskets" },
+          { key: "stockSip", label: "Stock SIP" },
+          { key: "gtt", label: "GTT" },
+        ];
+  const filteredOrders = (ordersConfig?.orders || []).filter(
+    (o) => (o.segmentKey || "positions") === activeOrderTool,
+  );
+  const reportDetailLines = useMemo(() => {
+    if (!activeReport) return [] as string[];
+    if (activeReport === "Trades and Charges") {
+      return [
+        `Total entries: ${(ordersConfig?.orders || []).length}`,
+        `Open positions: ${(ordersConfig?.orders || []).filter((o) => o.status === "OPEN").length}`,
+      ];
+    }
+    if (activeReport === "Profit & Loss") {
+      return [
+        `Day P/L: ₹ ${money.format(ordersConfig?.summary?.dayPnl ?? 0)}`,
+        `Total P/L: ₹ ${money.format(ordersConfig?.summary?.totalPnl ?? 0)}`,
+      ];
+    }
+    if (activeReport === "Statement / Ledger") {
+      return [
+        `Latest balance: ₹ ${money.format(user?.tradingBalance ?? 0)}`,
+        `Margin configured: ${(user?.margin ?? 0).toFixed(2)}X`,
+      ];
+    }
+    if (activeReport === "Fund Transactions") {
+      return [
+        `Last entered amount: ₹ ${money.format(Number(fundAmount || 0))}`,
+        `Reference: ${fundReference || "-"}`,
+      ];
+    }
+    return [
+      `User: ${user?.fullName || "Trader"}`,
+      `Email: ${user?.email || "-"}`,
+    ];
+  }, [activeReport, fundAmount, fundReference, money, ordersConfig, user]);
 
   function makeAutoPoints(base: number, wiggle: number, count: number, seed: number) {
     const now = Date.now();
@@ -226,7 +459,8 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount: Number(fundAmount),
-          method: "upi",
+          type: "add",
+          method: fundMethod,
           reference: fundReference,
           note: fundNote,
         }),
@@ -241,11 +475,53 @@ export default function DashboardPage() {
       setFundAmount("");
       setFundReference("");
       setFundNote("");
+      setShowAddFundsModal(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
       setFundError(msg);
     } finally {
       setFundSubmitting(false);
+    }
+  }
+
+  async function handleWithdrawSubmit() {
+    setWithdrawSubmitting(true);
+    setWithdrawMessage(null);
+    setWithdrawError(null);
+    try {
+      const res = await fetch("/api/funds/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: Number(withdrawAmount),
+          type: "withdraw",
+          method: fundMethod,
+          reference: fundReference,
+          note: fundNote,
+        }),
+      });
+      const data: FundRequestResponse = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to submit withdraw request");
+      }
+      setWithdrawMessage(data.message);
+      setWithdrawAmount("");
+      setFundReference("");
+      setFundNote("");
+      setShowWithdrawModal(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setWithdrawError(msg);
+    } finally {
+      setWithdrawSubmitting(false);
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      window.location.href = "/login";
     }
   }
 
@@ -264,7 +540,7 @@ export default function DashboardPage() {
     });
 
     const d = coords
-      .map((p, i) => {
+      .map((p) => {
         return `${p.x},${p.y}`;
       })
       .join(" ");
@@ -356,7 +632,11 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-16">
+    <div
+      className={`min-h-screen bg-slate-50 ${
+        activeTab === "orders" ? "pb-28" : "pb-16"
+      }`}
+    >
       <style jsx global>{`
         @keyframes ajxDotPulse {
           0% {
@@ -405,7 +685,7 @@ export default function DashboardPage() {
       `}</style>
       {/* Top app bar */}
       <header className="bg-sky-600 px-4 pb-4 pt-3 text-white shadow-sm">
-        <div className="flex items-center justify-between">
+        <div className="relative mx-auto flex w-full max-w-5xl items-center justify-between">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -423,74 +703,97 @@ export default function DashboardPage() {
               <h1 className="text-lg font-semibold">Ajmeraexchange</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="h-8 w-8 rounded-full bg-sky-500 text-xs font-semibold uppercase flex items-center justify-center">
-              {user.fullName?.[0] || "U"}
-            </span>
+          <div ref={profileMenuRef} className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowProfileMenu((prev) => !prev)}
+              className="flex items-center gap-2 rounded-2xl border border-white/30 bg-white/10 px-2 py-1.5"
+            >
+              {userPhotoUrl && !userPhotoFailed ? (
+                <img
+                  src={userPhotoUrl}
+                  alt={user.fullName || "User"}
+                  className="h-8 w-8 rounded-full border border-white/70 object-cover"
+                  onError={() => setUserPhotoFailed(true)}
+                />
+              ) : (
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/70 bg-sky-500 text-xs font-semibold uppercase">
+                  {user.fullName?.[0] || "U"}
+                </span>
+              )}
+              <FaChevronDown
+                className={`h-3.5 w-3.5 transition-transform ${
+                  showProfileMenu ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+            {showProfileMenu && (
+              <div className="absolute right-0 top-12 z-40 w-64 overflow-hidden rounded-3xl border border-slate-200 bg-white text-slate-800 shadow-2xl">
+                <div className="flex items-center gap-3 border-b border-slate-100 p-4">
+                  {userPhotoUrl && !userPhotoFailed ? (
+                    <img
+                      src={userPhotoUrl}
+                      alt={user.fullName || "User"}
+                      className="h-12 w-12 rounded-full border border-sky-500 object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full border border-sky-500 bg-slate-100 text-sm font-semibold text-slate-700">
+                      {user.fullName?.[0] || "U"}
+                    </span>
+                  )}
+                  <div>
+                    <p className="text-sm font-semibold">{user.fullName || "User"}</p>
+                    <p className="text-xs text-slate-500">
+                      {(user.email || "user@ajx").split("@")[0].toUpperCase()}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("profile");
+                    setShowProfileMenu(false);
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-slate-50"
+                >
+                  <MdOutlineManageAccounts className="h-4 w-4 text-sky-600" />
+                  My Profile
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("settings");
+                    setShowProfileMenu(false);
+                  }}
+                  className="flex w-full items-center gap-2 border-b border-slate-100 px-4 py-3 text-left text-sm hover:bg-slate-50"
+                >
+                  <FaCog className="h-4 w-4 text-slate-500" />
+                  Settings
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleLogout()}
+                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                >
+                  <FaSignOutAlt className="h-4 w-4" />
+                  Logout
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </header>
 
-      <main className="px-4 pt-3">
+      <main className="mx-auto w-full max-w-5xl px-4 pt-3">
         {activeTab === "home" && (
           <div className="space-y-4">
-            <section className="-mt-8 rounded-3xl bg-white p-4 shadow-md">
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs font-semibold text-slate-600">
-                  Hi, {user.fullName || "Trader"}
-                </p>
-                <p className="text-[11px] text-slate-400">{user.email}</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
-                  <p className="text-[11px] text-slate-500">Trading Balance</p>
-                  <p className="mt-1 text-lg font-semibold text-slate-900">
-                    ₹ {money.format(user.tradingBalance)}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
-                  <p className="text-[11px] text-slate-500">
-                    Margin ({user.margin.toFixed(2)}X)
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-slate-900">
-                    ₹ {money.format(user.tradingBalance)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-3 flex gap-3 text-sm">
-                <button className="flex-1 rounded-full bg-rose-500 py-2 text-xs font-semibold text-white">
-                  Withdraw
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("funds")}
-                  className="flex-1 rounded-full bg-emerald-500 py-2 text-xs font-semibold text-white"
-                >
-                  Add Fund
-                </button>
-              </div>
-
-              <div className="mt-5">
-                <h2 className="mb-2 text-xs font-semibold text-slate-700">
-                  Reports &amp; Statement
-                </h2>
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <button className="rounded-xl border border-slate-200 bg-slate-50 py-3 font-medium text-slate-700">
-                    Trades &amp; Charges
-                  </button>
-                  <button className="rounded-xl border border-slate-200 bg-slate-50 py-3 font-medium text-slate-700">
-                    Profit &amp; Loss
-                  </button>
-                  <button className="rounded-xl border border-slate-200 bg-slate-50 py-3 font-medium text-slate-700">
-                    Statement / Ledger
-                  </button>
-                  <button className="rounded-xl border border-slate-200 bg-slate-50 py-3 font-medium text-slate-700">
-                    Fund Transaction
-                  </button>
-                </div>
-              </div>
+            <section className="rounded-3xl bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold text-slate-600">
+                Hi, {user.fullName || "Trader"}
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Track market movement, then manage funds and reports from the Funds tab.
+              </p>
             </section>
 
             <section className="rounded-3xl bg-white p-3 shadow-sm">
@@ -516,6 +819,16 @@ export default function DashboardPage() {
                         {tabs[0]?.name || "Index"}
                       </button>
                     </div>
+                      <p className="text-[11px] font-semibold text-slate-800">
+                        {idx.name}: {money.format(idx.value)}
+                        <span
+                          className={`ml-1 ${
+                            positive ? "text-emerald-600" : "text-rose-600"
+                          }`}
+                        >
+                          {formatSignedPct(idx.changePct)}
+                        </span>
+                      </p>
                       <p className="text-[11px] font-semibold text-slate-700">
                         {homeConfig?.chart?.title || "Chart"}
                       </p>
@@ -543,6 +856,134 @@ export default function DashboardPage() {
                   </div>
                 );
               })()}
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-4">
+              <h2 className="text-lg font-semibold text-[#1f3f82]">Global Markets</h2>
+              <div className="mt-3 rounded-2xl border border-cyan-300/70 p-3">
+                <div className="flex gap-2 overflow-auto pb-2 text-sm">
+                  {globalMarkets.map((item) => (
+                    <button
+                      key={item.symbol}
+                      type="button"
+                      onClick={() => setSelectedGlobalSymbol(item.symbol)}
+                      className={`rounded-xl px-3 py-1.5 font-medium whitespace-nowrap ${
+                        selectedGlobalMarket.symbol === item.symbol
+                          ? "bg-slate-200 text-slate-900"
+                          : "text-slate-600"
+                      }`}
+                    >
+                      {item.name.split(" ")[0]}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2">
+                  <p className="text-xl font-semibold text-slate-900">
+                    {selectedGlobalMarket.name}
+                  </p>
+                  <p className="text-4xl font-semibold text-slate-900">
+                    {money.format(selectedGlobalMarket.price)}
+                    <span className="ml-1 text-lg font-medium text-slate-500">USD</span>
+                  </p>
+                  <p
+                    className={`text-xl font-semibold ${
+                      selectedGlobalMarket.yearlyChange >= 0
+                        ? "text-emerald-600"
+                        : "text-rose-600"
+                    }`}
+                  >
+                    {formatSigned(selectedGlobalMarket.yearlyChange)}{" "}
+                    {formatSignedPct(selectedGlobalMarket.yearlyChangePct)} Past year
+                  </p>
+                  <div className="mt-3 flex gap-2 text-[11px]">
+                    {["1D", "1M", "3M", "1Y", "5Y", "All"].map((k) => (
+                      <span
+                        key={k}
+                        className={`rounded-lg px-2 py-1 font-semibold ${
+                          k === "1Y" ? "bg-slate-200 text-slate-900" : "text-slate-500"
+                        }`}
+                      >
+                        {k}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-2">
+                    <Chart
+                      points={makeAutoPoints(
+                        selectedGlobalMarket.chartBase,
+                        selectedGlobalMarket.chartWiggle,
+                        18,
+                        chartTick + selectedGlobalMarket.symbol.length * 39,
+                      )}
+                    />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-4">
+              <h2 className="text-lg font-semibold text-[#1f3f82]">
+                Cryptocurrency Markets
+              </h2>
+              <div className="mt-3 rounded-2xl border border-cyan-300/70 p-3">
+                <div className="flex gap-2 overflow-auto pb-2 text-sm">
+                  {cryptoMarkets.map((item) => (
+                    <button
+                      key={item.symbol}
+                      type="button"
+                      onClick={() => setSelectedCryptoSymbol(item.symbol)}
+                      className={`rounded-xl px-3 py-1.5 font-medium whitespace-nowrap ${
+                        selectedCryptoMarket.symbol === item.symbol
+                          ? "bg-slate-200 text-slate-900"
+                          : "text-slate-600"
+                      }`}
+                    >
+                      {item.name.split(" ")[0]}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2">
+                  <p className="text-xl font-semibold text-slate-900">
+                    {selectedCryptoMarket.name}
+                  </p>
+                  <p className="text-4xl font-semibold text-slate-900">
+                    {money.format(selectedCryptoMarket.price)}
+                    <span className="ml-1 text-lg font-medium text-slate-500">USD</span>
+                  </p>
+                  <p
+                    className={`text-xl font-semibold ${
+                      selectedCryptoMarket.yearlyChange >= 0
+                        ? "text-emerald-600"
+                        : "text-rose-600"
+                    }`}
+                  >
+                    {formatSigned(selectedCryptoMarket.yearlyChange)}{" "}
+                    {formatSignedPct(selectedCryptoMarket.yearlyChangePct)} Past year
+                  </p>
+                  <div className="mt-3 flex gap-2 text-[11px]">
+                    {["1D", "1M", "3M", "1Y", "5Y", "All"].map((k) => (
+                      <span
+                        key={k}
+                        className={`rounded-lg px-2 py-1 font-semibold ${
+                          k === "1Y" ? "bg-slate-200 text-slate-900" : "text-slate-500"
+                        }`}
+                      >
+                        {k}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-2">
+                    <Chart
+                      points={makeAutoPoints(
+                        selectedCryptoMarket.chartBase,
+                        selectedCryptoMarket.chartWiggle,
+                        18,
+                        chartTick + selectedCryptoMarket.symbol.length * 55,
+                      )}
+                    />
+                  </div>
+                </div>
+              </div>
             </section>
 
             <section className="rounded-3xl border border-slate-200 bg-white p-3">
@@ -772,6 +1213,22 @@ export default function DashboardPage() {
           <div className="space-y-3">
             <section className="-mt-8 rounded-3xl bg-white p-4 shadow-md">
               <h2 className="text-sm font-semibold text-slate-800">Orders</h2>
+              <div className="mt-3 flex gap-2 overflow-auto pb-1 text-[11px]">
+                {orderSegments.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setActiveOrderTool(item.key)}
+                    className={`rounded-full px-3 py-1 whitespace-nowrap ${
+                      activeOrderTool === item.key
+                        ? "bg-sky-500 text-white"
+                        : "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                   <p className="text-slate-500">Day P/L</p>
@@ -800,38 +1257,66 @@ export default function DashboardPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl border border-slate-200 bg-white p-2">
-              <ul className="divide-y divide-slate-100">
-                {(ordersConfig?.orders || []).map((o) => {
-                  const positive = o.pnl >= 0;
-                  return (
-                    <li key={o.id} className="px-3 py-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs font-semibold text-slate-800">
-                            {o.symbol} · {o.side}
-                          </p>
-                          <p className="text-[11px] text-slate-500">
-                            Qty {o.qty} · Avg {money.format(o.avgPrice)} · LTP {money.format(o.ltp)}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p
-                            className={`text-xs font-semibold ${
-                              positive ? "text-emerald-600" : "text-rose-600"
+            <section className="rounded-3xl border border-slate-200 bg-white p-3">
+              <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2 text-xs">
+                <p className="font-semibold text-slate-700">
+                  {orderSegments.find((segment) => segment.key === activeOrderTool)
+                    ?.label || "Orders"}
+                </p>
+                <span className="text-slate-500">
+                  {filteredOrders.length} items
+                </span>
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-3">
+              <div className="overflow-auto rounded-2xl border border-slate-200">
+                <table className="min-w-[680px] w-full text-left text-[11px]">
+                  <thead className="bg-slate-100 text-slate-700">
+                    <tr>
+                      <th className="px-3 py-2">Symbol</th>
+                      <th className="px-3 py-2">Side</th>
+                      <th className="px-3 py-2">Qty</th>
+                      <th className="px-3 py-2">Avg</th>
+                      <th className="px-3 py-2">LTP</th>
+                      <th className="px-3 py-2">P/L</th>
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredOrders.map((o) => (
+                        <tr key={o.id} className="border-t border-slate-100">
+                          <td className="px-3 py-2 font-semibold text-slate-800">
+                            {o.symbol}
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">{o.side}</td>
+                          <td className="px-3 py-2 text-slate-700">{o.qty}</td>
+                          <td className="px-3 py-2 text-slate-700">
+                            {money.format(o.avgPrice)}
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">
+                            {money.format(o.ltp)}
+                          </td>
+                          <td
+                            className={`px-3 py-2 font-semibold ${
+                              o.pnl >= 0 ? "text-emerald-600" : "text-rose-600"
                             }`}
                           >
                             ₹ {money.format(o.pnl)}
-                          </p>
-                          <p className="text-[10px] text-slate-500">
-                            {o.status}{o.time ? ` · ${o.time}` : ""}
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">{o.status}</td>
+                          <td className="px-3 py-2 text-slate-700">{o.time || "-"}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+              {filteredOrders.length === 0 && (
+                <p className="mt-2 text-xs text-slate-500">
+                  No entries available for this segment.
+                </p>
+              )}
             </section>
           </div>
         )}
@@ -846,119 +1331,108 @@ export default function DashboardPage() {
             </section>
 
             <section className="rounded-3xl bg-white p-4 shadow-sm">
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
-                  <p className="text-[11px] text-slate-500">Trading Balance</p>
-                  <p className="mt-1 text-lg font-semibold text-slate-900">
-                    ₹ {money.format(user.tradingBalance)}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
-                  <p className="text-[11px] text-slate-500">
-                    Margin ({user.margin.toFixed(2)}X)
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-slate-900">
-                    ₹ {money.format(user.tradingBalance)}
-                  </p>
+              <div className="rounded-2xl border border-slate-200 p-3">
+                <p className="text-xs font-semibold text-slate-700">Trading Balance</p>
+                <p className="mt-1 text-4xl font-semibold text-slate-900">
+                  ₹ {money.format(user.tradingBalance)}
+                </p>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  last updated at {new Date().toLocaleDateString("en-IN")}
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFundMethod("netbanking");
+                      setShowWithdrawModal(true);
+                    }}
+                    className="flex-1 rounded-xl bg-rose-500 py-2 text-xs font-semibold text-white"
+                  >
+                    Withdraw
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFundMethod("upi");
+                      setShowAddFundsModal(true);
+                    }}
+                    className="flex-1 rounded-xl bg-sky-600 py-2 text-xs font-semibold text-white"
+                  >
+                    Add Fund
+                  </button>
                 </div>
               </div>
-
-              <div className="mt-5">
-                <h2 className="mb-2 text-xs font-semibold text-slate-700">
-                  Reports &amp; Statement
-                </h2>
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <button className="rounded-xl border border-slate-200 bg-slate-50 py-3 font-medium text-slate-700">
-                    Trades &amp; Charges
-                  </button>
-                  <button className="rounded-xl border border-slate-200 bg-slate-50 py-3 font-medium text-slate-700">
-                    Profit &amp; Loss
-                  </button>
-                  <button className="rounded-xl border border-slate-200 bg-slate-50 py-3 font-medium text-slate-700">
-                    Statement / Ledger
-                  </button>
-                  <button className="rounded-xl border border-slate-200 bg-slate-50 py-3 font-medium text-slate-700">
-                    Fund Transaction
-                  </button>
+              <div className="mt-4 rounded-2xl border border-slate-200 p-3">
+                <p className="text-xs font-semibold text-slate-700">
+                  Add Funds To Trading Balance
+                </p>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Select an amount to proceed quickly.
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {fundPresets.map((amount) => (
+                    <button
+                      key={amount}
+                      type="button"
+                      onClick={() => setFundAmount(String(amount))}
+                      className="rounded-xl bg-gradient-to-r from-[#0b4ea2] to-[#d91b4d] py-2 text-sm font-semibold text-white"
+                    >
+                      ₹ {money.format(amount)}
+                    </button>
+                  ))}
                 </div>
               </div>
             </section>
 
             <section className="rounded-3xl border border-slate-200 bg-white p-4">
-              {qrUrl && !qrImgFailed ? (
-                <div className="mb-3 flex justify-center">
-                  <img
-                    src={`${qrUrl}${qrUrl.includes("?") ? "&" : "?"}t=${Date.now()}`}
-                    alt="Payment QR"
-                    className="h-44 w-44 rounded-2xl border border-slate-200 object-contain"
-                    onError={() => setQrImgFailed(true)}
-                  />
-                </div>
-              ) : (
-                <p className="mb-3 text-xs text-amber-600">
-                  QR code is not available. Please contact admin.
-                </p>
-              )}
-
-              <div className="space-y-2 text-xs">
-                <div>
-                  <label className="mb-1 block font-medium text-slate-700">
-                    Amount (₹)
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={fundAmount}
-                    onChange={(e) => setFundAmount(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-                    placeholder="Enter amount you paid"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block font-medium text-slate-700">
-                    UPI / Transaction Reference
-                  </label>
-                  <input
-                    type="text"
-                    value={fundReference}
-                    onChange={(e) => setFundReference(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-                    placeholder="Enter UPI reference or transaction ID"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block font-medium text-slate-700">
-                    Note (optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={fundNote}
-                    onChange={(e) => setFundNote(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-200"
-                    placeholder="e.g. From UPI ID, bank name, etc."
-                  />
-                </div>
+              <h2 className="mb-2 text-xs font-semibold text-slate-700">
+                Reports &amp; Statements
+              </h2>
+              <div className="space-y-2">
+                {reportCards.map((item) => (
+                  <button
+                    key={item.title}
+                    type="button"
+                    onClick={() => setActiveReport(item.title)}
+                    className="flex w-full items-center justify-between rounded-2xl border border-slate-200 px-3 py-3 text-left"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">{item.title}</p>
+                      <p className="text-xs text-slate-500">{item.description}</p>
+                    </div>
+                    <FaChevronRight className="h-4 w-4 text-slate-400" />
+                  </button>
+                ))}
               </div>
+            </section>
 
-              {fundError && (
-                <p className="mt-2 text-[11px] font-medium text-rose-600">
-                  {fundError}
-                </p>
-              )}
-              {fundMessage && (
-                <p className="mt-2 text-[11px] font-medium text-emerald-600">
-                  {fundMessage}
-                </p>
-              )}
-
-              <button
-                type="button"
-                onClick={() => void handleFundSubmit()}
-                disabled={fundSubmitting}
-                className="mt-3 w-full rounded-full bg-emerald-500 py-2 text-xs font-semibold text-white disabled:opacity-60"
-              >
-                {fundSubmitting ? "Submitting..." : "Submit Fund Details"}
-              </button>
+            <section className="rounded-3xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-semibold text-slate-700">Payment Actions</p>
+              <p className="mt-1 text-[11px] text-slate-500">
+                Choose Add Funds or Withdraw to continue in a secure payment flow.
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFundMethod("upi");
+                    setShowAddFundsModal(true);
+                  }}
+                  className="rounded-xl bg-sky-600 py-2 text-xs font-semibold text-white"
+                >
+                  Add Funds Flow
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFundMethod("netbanking");
+                    setShowWithdrawModal(true);
+                  }}
+                  className="rounded-xl bg-rose-500 py-2 text-xs font-semibold text-white"
+                >
+                  Withdraw Flow
+                </button>
+              </div>
             </section>
           </div>
         )}
@@ -972,47 +1446,398 @@ export default function DashboardPage() {
               </p>
             </section>
 
-            <section className="rounded-3xl border border-slate-200 bg-white p-4 text-xs">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Full Name</span>
-                  <span className="font-semibold text-slate-800">
+            <section className="rounded-3xl border border-slate-200 bg-white p-4">
+              <div className="flex items-center gap-3">
+                {userPhotoUrl && !userPhotoFailed ? (
+                  <img
+                    src={userPhotoUrl}
+                    alt={user.fullName || "User"}
+                    className="h-20 w-20 rounded-2xl border-2 border-sky-500 object-cover"
+                    onError={() => setUserPhotoFailed(true)}
+                  />
+                ) : (
+                  <span className="flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-sky-500 bg-sky-50 text-2xl font-semibold text-sky-700">
+                    {user.fullName?.[0] || "U"}
+                  </span>
+                )}
+                <div>
+                  <p className="text-2xl font-semibold text-[#1f3f82]">
                     {user.fullName || "-"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Email</span>
-                  <span className="font-semibold text-slate-800">
-                    {user.email || "-"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Phone</span>
-                  <span className="font-semibold text-slate-800">
-                    {user.phone || "-"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">PAN</span>
-                  <span className="font-semibold text-slate-800">
-                    {user.panNumber || "-"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Aadhaar</span>
-                  <span className="font-semibold text-slate-800">
-                    {user.aadhaarNumber || "-"}
-                  </span>
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    Client ID {String(user.email || "A00000").split("@")[0].toUpperCase()}
+                  </p>
                 </div>
               </div>
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-4 text-xs">
+              <h3 className="mb-3 text-base font-semibold text-slate-800">Personal Info</h3>
+              <div className="space-y-3">
+                {[
+                  { label: "Mobile Number", value: user.phone || "-" },
+                  { label: "Email", value: user.email || "-" },
+                  { label: "PAN Number", value: user.panNumber || "-" },
+                  { label: "Aadhaar No", value: user.aadhaarNumber || "-" },
+                ].map((row) => (
+                  <div key={row.label} className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[11px] text-slate-500">{row.label}</p>
+                      <p className="text-sm font-semibold text-slate-800">{row.value}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("settings")}
+                      className="rounded-lg border border-slate-200 p-2 text-slate-500"
+                      aria-label={`Edit ${row.label}`}
+                    >
+                      <FaRegEdit className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-4">
+              <h3 className="text-sm font-semibold text-slate-800">Quick Actions</h3>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("orders")}
+                  className="rounded-xl border border-slate-200 bg-slate-50 py-2 font-semibold text-slate-700"
+                >
+                  View Orders
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("funds")}
+                  className="rounded-xl border border-slate-200 bg-slate-50 py-2 font-semibold text-slate-700"
+                >
+                  Open Funds
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFundMethod("upi");
+                    setShowAddFundsModal(true);
+                  }}
+                  className="rounded-xl bg-sky-600 py-2 font-semibold text-white"
+                >
+                  Add Funds
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFundMethod("netbanking");
+                    setShowWithdrawModal(true);
+                  }}
+                  className="rounded-xl bg-rose-500 py-2 font-semibold text-white"
+                >
+                  Withdraw
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
+
+        {activeTab === "settings" && (
+          <div className="space-y-3">
+            <section className="-mt-8 rounded-3xl bg-white p-4 shadow-md">
+              <h2 className="text-sm font-semibold text-slate-800">Settings</h2>
+              <p className="mt-1 text-[11px] text-slate-500">
+                Account preferences and security controls.
+              </p>
+            </section>
+            <section className="rounded-3xl border border-slate-200 bg-white p-4">
+              <div className="space-y-2 text-xs">
+                {[
+                  "Notification Preferences",
+                  "Session & Device Management",
+                  "Privacy Controls",
+                  "Support & Help Center",
+                ].map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setActiveReport(item)}
+                    className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-3 py-3 text-left"
+                  >
+                    <span className="font-medium text-slate-700">{item}</span>
+                    <FaChevronRight className="h-4 w-4 text-slate-400" />
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleLogout()}
+                className="mt-4 w-full rounded-xl bg-rose-500 py-2 text-sm font-semibold text-white"
+              >
+                Logout
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("profile")}
+                className="mt-2 w-full rounded-xl border border-slate-200 py-2 text-sm font-semibold text-slate-600"
+              >
+                Back to Profile
+              </button>
             </section>
           </div>
         )}
       </main>
 
+      {activeTab === "orders" && (
+        <div className="fixed inset-x-0 bottom-16 z-20 px-4">
+          <div className="mx-auto w-full max-w-5xl rounded-2xl border border-slate-200 bg-white/95 px-4 py-2 shadow-lg backdrop-blur">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-slate-700">Total Gain</p>
+              <button
+                type="button"
+                onClick={() => setShowOrderGainSheet((prev) => !prev)}
+                className="text-xs font-semibold text-slate-500"
+              >
+                ₹ {money.format(ordersConfig?.summary?.totalPnl ?? 0)}{" "}
+                <span className="inline-block">{showOrderGainSheet ? "▾" : "▴"}</span>
+              </button>
+            </div>
+            {showOrderGainSheet && (
+              <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
+                <div className="rounded-xl bg-slate-50 px-2 py-1.5">
+                  <p className="text-slate-500">Open Orders</p>
+                  <p className="font-semibold text-slate-700">
+                    {(ordersConfig?.orders || []).filter((o) => o.status === "OPEN").length}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-slate-50 px-2 py-1.5">
+                  <p className="text-slate-500">Day P/L</p>
+                  <p
+                    className={`font-semibold ${
+                      (ordersConfig?.summary?.dayPnl ?? 0) >= 0
+                        ? "text-emerald-600"
+                        : "text-rose-600"
+                    }`}
+                  >
+                    ₹ {money.format(ordersConfig?.summary?.dayPnl ?? 0)}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showAddFundsModal && (
+        <div className="fixed inset-0 z-40 flex items-end bg-slate-900/45 p-3 sm:items-center sm:justify-center">
+          <div className="w-full max-w-md rounded-3xl bg-white p-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-800">Add Funds</h3>
+              <button
+                type="button"
+                onClick={() => setShowAddFundsModal(false)}
+                className="text-xs font-semibold text-slate-500"
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-3 flex gap-2 text-xs">
+              {(["upi", "netbanking"] as const).map((method) => (
+                <button
+                  key={method}
+                  type="button"
+                  onClick={() => setFundMethod(method)}
+                  className={`rounded-full px-3 py-1 font-semibold ${
+                    fundMethod === method
+                      ? "bg-sky-600 text-white"
+                      : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {method === "upi" ? "UPI" : "Net Banking"}
+                </button>
+              ))}
+            </div>
+
+            {fundMethod === "upi" && (
+              <div className="mt-3 rounded-2xl border border-slate-200 p-3">
+                {qrUrl && !qrImgFailed ? (
+                  <img
+                    src={`${qrUrl}${qrUrl.includes("?") ? "&" : "?"}t=${Date.now()}`}
+                    alt="Payment QR"
+                    className="mx-auto h-36 w-36 rounded-xl border border-slate-200 object-contain"
+                    onError={() => setQrImgFailed(true)}
+                  />
+                ) : (
+                  <p className="text-xs text-amber-600">
+                    QR code not available. Use UPI ID below.
+                  </p>
+                )}
+                <p className="mt-2 text-xs text-slate-600">
+                  UPI ID: {paymentMeta?.upiId || "Not configured"}
+                </p>
+              </div>
+            )}
+
+            {fundMethod === "netbanking" && (
+              <div className="mt-3 rounded-2xl border border-slate-200 p-3 text-xs">
+                <p className="font-semibold text-slate-700">
+                  {paymentMeta?.bankName || "Bank details not configured"}
+                </p>
+                <p className="mt-1 text-slate-600">
+                  A/C: {paymentMeta?.accountNumber || "-"}
+                </p>
+                <p className="text-slate-600">IFSC: {paymentMeta?.ifsc || "-"}</p>
+                <p className="text-slate-600">
+                  Holder: {paymentMeta?.accountHolder || "-"}
+                </p>
+              </div>
+            )}
+
+            <div className="mt-3 space-y-2 text-xs">
+              <input
+                type="number"
+                min={1}
+                value={fundAmount}
+                onChange={(e) => setFundAmount(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 text-black bg-slate-50 px-3 py-2"
+                placeholder="Amount (₹)"
+              />
+              <input
+                type="text"
+                value={fundReference}
+                onChange={(e) => setFundReference(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 text-black bg-slate-50 px-3 py-2"
+                placeholder="Transaction reference"
+              />
+              <input
+                type="text"
+                value={fundNote}
+                onChange={(e) => setFundNote(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 text-black bg-slate-50 px-3 py-2"
+                placeholder="Note (optional)"
+              />
+            </div>
+            {fundError && <p className="mt-2 text-xs text-rose-600">{fundError}</p>}
+            {fundMessage && (
+              <p className="mt-2 text-xs text-emerald-600">{fundMessage}</p>
+            )}
+            <button
+              type="button"
+              onClick={() => void handleFundSubmit()}
+              disabled={fundSubmitting}
+              className="mt-3 w-full rounded-xl bg-emerald-500 py-2 text-xs font-semibold text-white"
+            >
+              {fundSubmitting ? "Submitting..." : "Submit Add Fund Request"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showWithdrawModal && (
+        <div className="fixed inset-0 z-40 flex items-end bg-slate-900/45 p-3 sm:items-center sm:justify-center">
+          <div className="w-full max-w-md rounded-3xl bg-white p-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-800">Withdraw Funds</h3>
+              <button
+                type="button"
+                onClick={() => setShowWithdrawModal(false)}
+                className="text-xs font-semibold text-slate-500"
+              >
+                Close
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Available balance: ₹ {money.format(user.tradingBalance)}
+            </p>
+
+            <div className="mt-3 flex gap-2 text-xs">
+              {(["upi", "netbanking"] as const).map((method) => (
+                <button
+                  key={method}
+                  type="button"
+                  onClick={() => setFundMethod(method)}
+                  className={`rounded-full px-3 py-1 font-semibold ${
+                    fundMethod === method
+                      ? "bg-sky-600 text-white"
+                      : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {method === "upi" ? "UPI" : "Net Banking"}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-3 space-y-2 text-xs">
+              <input
+                type="number"
+                min={1}
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 text-black px-3 py-2"
+                placeholder="Withdraw amount (₹)"
+              />
+              <input
+                type="text"
+                value={fundReference}
+                onChange={(e) => setFundReference(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 text-black px-3 py-2"
+                placeholder={fundMethod === "upi" ? "UPI ID" : "Bank account / ref"}
+              />
+              <input
+                type="text"
+                value={fundNote}
+                onChange={(e) => setFundNote(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 text-black px-3 py-2"
+                placeholder="Reason / Note"
+              />
+            </div>
+            {withdrawError && (
+              <p className="mt-2 text-xs text-rose-600">{withdrawError}</p>
+            )}
+            {withdrawMessage && (
+              <p className="mt-2 text-xs text-emerald-600">{withdrawMessage}</p>
+            )}
+            <button
+              type="button"
+              onClick={() => void handleWithdrawSubmit()}
+              disabled={withdrawSubmitting}
+              className="mt-3 w-full rounded-xl bg-rose-500 py-2 text-xs font-semibold text-white"
+            >
+              {withdrawSubmitting ? "Submitting..." : "Submit Withdraw Request"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeReport && (
+        <div className="fixed inset-0 z-40 flex items-end bg-slate-900/45 p-3 sm:items-center sm:justify-center">
+          <div className="w-full max-w-md rounded-3xl bg-white p-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-800">{activeReport}</h3>
+              <button
+                type="button"
+                onClick={() => setActiveReport(null)}
+                className="text-xs font-semibold text-slate-500"
+              >
+                Close
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Detailed summary for {activeReport}.
+            </p>
+            <div className="mt-3 rounded-2xl border border-slate-200 p-3 text-xs text-slate-600">
+              <p>Latest update: {new Date().toLocaleString("en-IN")}</p>
+              {reportDetailLines.map((line) => (
+                <p key={line} className="mt-1">
+                  {line}
+                </p>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bottom nav */}
       <nav className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 px-4 py-2 text-[10px] text-slate-500">
-        <div className="mx-auto flex max-w-md items-center justify-between">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between">
           <button
             type="button"
             onClick={() => setActiveTab("home")}
@@ -1057,7 +1882,9 @@ export default function DashboardPage() {
             type="button"
             onClick={() => setActiveTab("profile")}
             className={`flex flex-col items-center ${
-              activeTab === "profile" ? "text-sky-600" : ""
+              activeTab === "profile" || activeTab === "settings"
+                ? "text-sky-600"
+                : ""
             }`}
           >
             <FaRegUserCircle className="mb-0.5 h-5 w-5" />
@@ -1155,4 +1982,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

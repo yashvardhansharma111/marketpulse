@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from "react";
+import { FiEye, FiEyeOff } from "react-icons/fi";
 
 type UserStatus = "pending" | "active";
 
@@ -19,6 +20,7 @@ interface User {
 
 interface FundRequest {
   _id: string;
+  type?: "add" | "withdraw";
   userName: string;
   userEmail: string;
   amount: number;
@@ -58,6 +60,7 @@ type OrdersSummary = {
 
 type OrderRow = {
   id: string;
+  segmentKey: string;
   symbol: string;
   side: "BUY" | "SELL";
   qty: number;
@@ -68,8 +71,22 @@ type OrderRow = {
   time?: string;
 };
 
+type OrderSegment = {
+  key: string;
+  label: string;
+};
+
+type FundPaymentMeta = {
+  upiId: string;
+  bankName: string;
+  accountHolder: string;
+  accountNumber: string;
+  ifsc: string;
+};
+
 export default function AdminPage() {
   const [adminPin, setAdminPin] = useState("");
+  const [showAdminPin, setShowAdminPin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -81,6 +98,13 @@ export default function AdminPage() {
   const [balanceDrafts, setBalanceDrafts] = useState<Record<string, string>>({});
   const [marginDrafts, setMarginDrafts] = useState<Record<string, string>>({});
   const [qrUrl, setQrUrl] = useState<string>("");
+  const [fundPaymentMeta, setFundPaymentMeta] = useState<FundPaymentMeta>({
+    upiId: "",
+    bankName: "",
+    accountHolder: "",
+    accountNumber: "",
+    ifsc: "",
+  });
   const [savingQr, setSavingQr] = useState(false);
   const [qrImageFile, setQrImageFile] = useState<File | null>(null);
   const [hasQrImage, setHasQrImage] = useState(false);
@@ -95,17 +119,97 @@ export default function AdminPage() {
     totalPnl: 0,
   });
   const [ordersRows, setOrdersRows] = useState<OrderRow[]>([]);
+  const [orderSegments, setOrderSegments] = useState<OrderSegment[]>([]);
   const [savingDashboardConfig, setSavingDashboardConfig] = useState(false);
+  const [configScopeUserId, setConfigScopeUserId] = useState("");
+  const [configSources, setConfigSources] = useState({
+    home: "default",
+    watchlist: "default",
+    orders: "default",
+  });
 
   useEffect(() => {
-    const stored = window.localStorage.getItem("ajmera_admin_ok");
-    if (stored === "true") {
+    async function initFromStorage() {
+      const stored = window.localStorage.getItem("ajmera_admin_ok");
+      if (stored !== "true") return;
+
       setIsAuthenticated(true);
       void fetchUsers();
       void fetchQr();
       void fetchFunds();
-      void fetchDashboardConfigs();
+
+      try {
+        const [homeRes, watchRes, ordersRes] = await Promise.all([
+          fetch("/api/admin/dashboard-home"),
+          fetch("/api/admin/watchlist"),
+          fetch("/api/admin/orders"),
+        ]);
+
+        const homeData = await homeRes.json();
+        const watchData = await watchRes.json();
+        const ordersData = await ordersRes.json();
+
+        if (homeRes.ok) {
+          const cfg = (homeData.config ?? {}) as Record<string, unknown>;
+          const indices = (cfg.indices ?? []) as HomeIndexRow[];
+          const stocks = (cfg.stocks ?? []) as HomeStockRow[];
+          setHomeIndices(Array.isArray(indices) ? indices : []);
+          setHomeStocks(Array.isArray(stocks) ? stocks : []);
+          setHomeChartPreserve(cfg.chart ?? null);
+          setConfigSources((prev) => ({
+            ...prev,
+            home: String(homeData.source || "default"),
+          }));
+        }
+        if (watchRes.ok) {
+          const cfg = (watchData.config ?? {}) as Record<string, unknown>;
+          const items = (cfg.items ?? []) as WatchlistRow[];
+          setWatchlistItems(Array.isArray(items) ? items : []);
+          setConfigSources((prev) => ({
+            ...prev,
+            watchlist: String(watchData.source || "default"),
+          }));
+        }
+        if (ordersRes.ok) {
+          const cfg = (ordersData.config ?? {}) as Record<string, unknown>;
+          const summary = (cfg.summary ?? {}) as Partial<OrdersSummary>;
+          setOrdersSummary({
+            dayPnl: Number(summary.dayPnl ?? 0),
+            totalPnl: Number(summary.totalPnl ?? 0),
+          });
+          const segments = (cfg.segments ?? []) as OrderSegment[];
+          setOrderSegments(
+            Array.isArray(segments) && segments.length > 0
+              ? segments
+              : [
+                  { key: "positions", label: "Positions" },
+                  { key: "openOrders", label: "Open Orders" },
+                  { key: "baskets", label: "Baskets" },
+                  { key: "stockSip", label: "Stock SIP" },
+                  { key: "gtt", label: "GTT" },
+                ],
+          );
+          const rows = (cfg.orders ?? []) as OrderRow[];
+          setOrdersRows(
+            Array.isArray(rows)
+              ? rows.map((row) => ({
+                  ...row,
+                  segmentKey: row.segmentKey || "positions",
+                }))
+              : [],
+          );
+          setConfigSources((prev) => ({
+            ...prev,
+            orders: String(ordersData.source || "default"),
+          }));
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Something went wrong";
+        setAuthError(msg);
+      }
     }
+
+    void initFromStorage();
   }, []);
 
   async function handleSetBalanceMargin(userId: string) {
@@ -149,12 +253,16 @@ export default function AdminPage() {
     }
   }
 
-  async function fetchDashboardConfigs() {
+  async function fetchDashboardConfigs(scopeOverride?: string) {
     try {
+      const resolvedScope = scopeOverride ?? configScopeUserId;
+      const scopeSuffix = resolvedScope
+        ? `?scopeUserId=${encodeURIComponent(resolvedScope)}`
+        : "";
       const [homeRes, watchRes, ordersRes] = await Promise.all([
-        fetch("/api/admin/dashboard-home"),
-        fetch("/api/admin/watchlist"),
-        fetch("/api/admin/orders"),
+        fetch(`/api/admin/dashboard-home${scopeSuffix}`),
+        fetch(`/api/admin/watchlist${scopeSuffix}`),
+        fetch(`/api/admin/orders${scopeSuffix}`),
       ]);
 
       const homeData = await homeRes.json();
@@ -168,11 +276,19 @@ export default function AdminPage() {
         setHomeIndices(Array.isArray(indices) ? indices : []);
         setHomeStocks(Array.isArray(stocks) ? stocks : []);
         setHomeChartPreserve(cfg.chart ?? null);
+        setConfigSources((prev) => ({
+          ...prev,
+          home: String(homeData.source || "default"),
+        }));
       }
       if (watchRes.ok) {
         const cfg = (watchData.config ?? {}) as Record<string, unknown>;
         const items = (cfg.items ?? []) as WatchlistRow[];
         setWatchlistItems(Array.isArray(items) ? items : []);
+        setConfigSources((prev) => ({
+          ...prev,
+          watchlist: String(watchData.source || "default"),
+        }));
       }
       if (ordersRes.ok) {
         const cfg = (ordersData.config ?? {}) as Record<string, unknown>;
@@ -181,8 +297,31 @@ export default function AdminPage() {
           dayPnl: Number(summary.dayPnl ?? 0),
           totalPnl: Number(summary.totalPnl ?? 0),
         });
+        const segments = (cfg.segments ?? []) as OrderSegment[];
+        setOrderSegments(
+          Array.isArray(segments) && segments.length > 0
+            ? segments
+            : [
+                { key: "positions", label: "Positions" },
+                { key: "openOrders", label: "Open Orders" },
+                { key: "baskets", label: "Baskets" },
+                { key: "stockSip", label: "Stock SIP" },
+                { key: "gtt", label: "GTT" },
+              ],
+        );
         const rows = (cfg.orders ?? []) as OrderRow[];
-        setOrdersRows(Array.isArray(rows) ? rows : []);
+        setOrdersRows(
+          Array.isArray(rows)
+            ? rows.map((row) => ({
+                ...row,
+                segmentKey: row.segmentKey || "positions",
+              }))
+            : [],
+        );
+        setConfigSources((prev) => ({
+          ...prev,
+          orders: String(ordersData.source || "default"),
+        }));
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
@@ -209,6 +348,7 @@ export default function AdminPage() {
 
       const ordersConfig: Record<string, unknown> = {
         summary: ordersSummary,
+        segments: orderSegments,
         orders: ordersRows,
       };
 
@@ -216,17 +356,26 @@ export default function AdminPage() {
         fetch("/api/admin/dashboard-home", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ config: homeConfig }),
+          body: JSON.stringify({
+            config: homeConfig,
+            scopeUserId: configScopeUserId || null,
+          }),
         }),
         fetch("/api/admin/watchlist", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ config: watchConfig }),
+          body: JSON.stringify({
+            config: watchConfig,
+            scopeUserId: configScopeUserId || null,
+          }),
         }),
         fetch("/api/admin/orders", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ config: ordersConfig }),
+          body: JSON.stringify({
+            config: ordersConfig,
+            scopeUserId: configScopeUserId || null,
+          }),
         }),
       ]);
 
@@ -244,7 +393,44 @@ export default function AdminPage() {
         throw new Error(ordersData.message || "Failed to save orders config");
       }
 
-      setActionMessage("Dashboard configs saved.");
+      setActionMessage(
+        configScopeUserId
+          ? "User-specific dashboard config saved."
+          : "Global dashboard config saved.",
+      );
+      await fetchDashboardConfigs();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setAuthError(msg);
+    } finally {
+      setSavingDashboardConfig(false);
+    }
+  }
+
+  async function resetDashboardConfigsForScope() {
+    setSavingDashboardConfig(true);
+    setActionMessage(null);
+    setAuthError(null);
+    try {
+      const scopeSuffix = configScopeUserId
+        ? `?scopeUserId=${encodeURIComponent(configScopeUserId)}`
+        : "";
+      const [homeRes, watchRes, ordersRes] = await Promise.all([
+        fetch(`/api/admin/dashboard-home${scopeSuffix}`, { method: "DELETE" }),
+        fetch(`/api/admin/watchlist${scopeSuffix}`, { method: "DELETE" }),
+        fetch(`/api/admin/orders${scopeSuffix}`, { method: "DELETE" }),
+      ]);
+
+      if (!homeRes.ok || !watchRes.ok || !ordersRes.ok) {
+        throw new Error("Failed to reset one or more config sections");
+      }
+
+      setActionMessage(
+        configScopeUserId
+          ? "User-specific overrides reset to global/default."
+          : "Global configs reset to defaults.",
+      );
+      await fetchDashboardConfigs();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
       setAuthError(msg);
@@ -333,6 +519,13 @@ export default function AdminPage() {
         throw new Error(data.message || "Failed to load QR");
       }
       setQrUrl(data.qrUrl || "");
+      setFundPaymentMeta({
+        upiId: data.paymentMeta?.upiId || "",
+        bankName: data.paymentMeta?.bankName || "",
+        accountHolder: data.paymentMeta?.accountHolder || "",
+        accountNumber: data.paymentMeta?.accountNumber || "",
+        ifsc: data.paymentMeta?.ifsc || "",
+      });
 
       const imgRes = await fetch("/api/admin/qr-image");
       const imgData = await imgRes.json();
@@ -398,7 +591,7 @@ export default function AdminPage() {
       const res = await fetch("/api/admin/qr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qrUrl }),
+        body: JSON.stringify({ qrUrl, paymentMeta: fundPaymentMeta }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -438,7 +631,7 @@ export default function AdminPage() {
       if (!res.ok) {
         throw new Error(data.message || "Failed to approve request");
       }
-      setActionMessage("Fund approved and balance updated.");
+      setActionMessage(data.message || "Request approved and balance updated.");
       await fetchFunds();
       await fetchUsers();
     } catch (err) {
@@ -478,13 +671,27 @@ export default function AdminPage() {
             secret admin PIN to continue.
           </p>
           <div className="space-y-3">
-            <input
-              type="password"
-              value={adminPin}
-              onChange={(e) => setAdminPin(e.target.value)}
-              className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-50 outline-none ring-sky-500/0 placeholder:text-slate-500 focus:border-sky-400 focus:ring-2 focus:ring-sky-500/60"
-              placeholder="Admin PIN"
-            />
+            <div className="relative">
+              <input
+                type={showAdminPin ? "text" : "password"}
+                value={adminPin}
+                onChange={(e) => setAdminPin(e.target.value)}
+                className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 pr-10 text-sm text-slate-50 outline-none ring-sky-500/0 placeholder:text-slate-500 focus:border-sky-400 focus:ring-2 focus:ring-sky-500/60"
+                placeholder="Admin PIN"
+              />
+              <button
+                type="button"
+                onClick={() => setShowAdminPin((prev) => !prev)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+                aria-label={showAdminPin ? "Hide PIN" : "Show PIN"}
+              >
+                {showAdminPin ? (
+                  <FiEyeOff className="h-4 w-4" />
+                ) : (
+                  <FiEye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
             {authError && (
               <p className="text-xs font-medium text-rose-400">{authError}</p>
             )}
@@ -738,6 +945,68 @@ export default function AdminPage() {
                   className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-50 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/60"
                   placeholder="https://..."
                 />
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={fundPaymentMeta.upiId}
+                    onChange={(e) =>
+                      setFundPaymentMeta((prev) => ({
+                        ...prev,
+                        upiId: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-50 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/60"
+                    placeholder="UPI ID"
+                  />
+                  <input
+                    type="text"
+                    value={fundPaymentMeta.bankName}
+                    onChange={(e) =>
+                      setFundPaymentMeta((prev) => ({
+                        ...prev,
+                        bankName: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-50 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/60"
+                    placeholder="Bank Name"
+                  />
+                  <input
+                    type="text"
+                    value={fundPaymentMeta.accountHolder}
+                    onChange={(e) =>
+                      setFundPaymentMeta((prev) => ({
+                        ...prev,
+                        accountHolder: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-50 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/60"
+                    placeholder="Account Holder"
+                  />
+                  <input
+                    type="text"
+                    value={fundPaymentMeta.accountNumber}
+                    onChange={(e) =>
+                      setFundPaymentMeta((prev) => ({
+                        ...prev,
+                        accountNumber: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-50 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/60"
+                    placeholder="Account Number"
+                  />
+                  <input
+                    type="text"
+                    value={fundPaymentMeta.ifsc}
+                    onChange={(e) =>
+                      setFundPaymentMeta((prev) => ({
+                        ...prev,
+                        ifsc: e.target.value,
+                      }))
+                    }
+                    className="col-span-2 w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-50 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/60"
+                    placeholder="IFSC Code"
+                  />
+                </div>
                 {qrUrl && (
                   <div className="mt-2 flex justify-center">
                     <img
@@ -773,6 +1042,7 @@ export default function AdminPage() {
                         className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2"
                       >
                         <p className="text-[11px] font-semibold text-slate-50">
+                          {(req.type || "add").toUpperCase()} ·{" "}
                           {req.userName} · ₹
                           {req.amount.toLocaleString("en-IN")}
                         </p>
@@ -800,7 +1070,9 @@ export default function AdminPage() {
                               onClick={() => void approveFund(req._id)}
                               className="flex-1 rounded-full bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-white hover:bg-emerald-600"
                             >
-                              Approve &amp; Add Balance
+                              {req.type === "withdraw"
+                                ? "Approve Withdraw"
+                                : "Approve & Add Balance"}
                             </button>
                             <button
                               type="button"
@@ -821,17 +1093,56 @@ export default function AdminPage() {
 
           <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 md:col-span-3">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-100">
-                Dashboard Data (Home / Watchlist / Orders)
-              </h2>
-              <button
-                type="button"
-                onClick={() => void saveDashboardConfigs()}
-                disabled={savingDashboardConfig}
-                className="rounded-full bg-sky-500 px-4 py-1.5 text-[11px] font-semibold text-white hover:bg-sky-600 disabled:opacity-60"
-              >
-                {savingDashboardConfig ? "Saving..." : "Save Dashboard Data"}
-              </button>
+              <div className="space-y-2">
+                <h2 className="text-sm font-semibold text-slate-100">
+                  Dashboard Data (Home / Watchlist / Orders)
+                </h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={configScopeUserId}
+                    onChange={(e) => {
+                      const nextScope = e.target.value;
+                      setConfigScopeUserId(nextScope);
+                      void fetchDashboardConfigs(nextScope);
+                    }}
+                    className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] text-slate-100 outline-none focus:border-sky-400"
+                  >
+                    <option value="">Global Defaults</option>
+                    {users.map((u) => (
+                      <option key={u._id} value={u._id}>
+                        {u.fullName} ({u.email})
+                      </option>
+                    ))}
+                  </select>
+                  <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] text-slate-300">
+                    home: {configSources.home}
+                  </span>
+                  <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] text-slate-300">
+                    watchlist: {configSources.watchlist}
+                  </span>
+                  <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] text-slate-300">
+                    orders: {configSources.orders}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void resetDashboardConfigsForScope()}
+                  disabled={savingDashboardConfig}
+                  className="rounded-full bg-rose-500 px-4 py-1.5 text-[11px] font-semibold text-white hover:bg-rose-600 disabled:opacity-60"
+                >
+                  Reset Scope
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saveDashboardConfigs()}
+                  disabled={savingDashboardConfig}
+                  className="rounded-full bg-sky-500 px-4 py-1.5 text-[11px] font-semibold text-white hover:bg-sky-600 disabled:opacity-60"
+                >
+                  {savingDashboardConfig ? "Saving..." : "Save Dashboard Data"}
+                </button>
+              </div>
             </div>
             <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-3">
@@ -1199,6 +1510,75 @@ export default function AdminPage() {
                   />
                 </div>
 
+                <div className="mt-2 border-t border-slate-800 pt-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-semibold text-slate-200">
+                      Orders - Segments
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOrderSegments((prev) => [
+                          ...prev,
+                          { key: `seg_${Date.now()}`, label: "New Segment" },
+                        ])
+                      }
+                      className="rounded-full bg-slate-800 px-3 py-1 text-[11px] font-semibold text-slate-200 hover:bg-slate-700"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="mt-2 space-y-2">
+                    {orderSegments.map((segment, idx) => (
+                      <div
+                        key={`${segment.key}-${idx}`}
+                        className="rounded-xl border border-slate-800 bg-slate-950 p-2"
+                      >
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            value={segment.key}
+                            onChange={(e) =>
+                              setOrderSegments((prev) =>
+                                prev.map((r, i) =>
+                                  i === idx ? { ...r, key: e.target.value } : r,
+                                ),
+                              )
+                            }
+                            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] text-slate-100 outline-none focus:border-sky-400"
+                            placeholder="segment key"
+                          />
+                          <input
+                            value={segment.label}
+                            onChange={(e) =>
+                              setOrderSegments((prev) =>
+                                prev.map((r, i) =>
+                                  i === idx ? { ...r, label: e.target.value } : r,
+                                ),
+                              )
+                            }
+                            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] text-slate-100 outline-none focus:border-sky-400"
+                            placeholder="segment label"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOrderSegments((prev) => prev.filter((_, i) => i !== idx))
+                          }
+                          className="mt-2 w-full rounded-full bg-rose-500 px-3 py-1 text-[11px] font-semibold text-white hover:bg-rose-600"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                    {orderSegments.length === 0 && (
+                      <p className="text-[11px] text-slate-500">
+                        No order segments yet.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
                 <div className="mt-2 flex items-center justify-between">
                   <p className="text-[11px] font-semibold text-slate-200">
                     Orders - Rows
@@ -1210,6 +1590,7 @@ export default function AdminPage() {
                         ...prev,
                         {
                           id: String(Date.now()),
+                          segmentKey: orderSegments[0]?.key || "positions",
                           symbol: "",
                           side: "BUY",
                           qty: 0,
@@ -1234,6 +1615,23 @@ export default function AdminPage() {
                       className="rounded-xl border border-slate-800 bg-slate-950 p-2"
                     >
                       <div className="grid grid-cols-2 gap-2">
+                        <select
+                          value={row.segmentKey}
+                          onChange={(e) =>
+                            setOrdersRows((prev) =>
+                              prev.map((r, i) =>
+                                i === idx ? { ...r, segmentKey: e.target.value } : r,
+                              ),
+                            )
+                          }
+                          className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] text-slate-100 outline-none focus:border-sky-400"
+                        >
+                          {orderSegments.map((segment) => (
+                            <option key={segment.key} value={segment.key}>
+                              {segment.label}
+                            </option>
+                          ))}
+                        </select>
                         <input
                           value={row.symbol}
                           onChange={(e) =>
@@ -1368,4 +1766,3 @@ export default function AdminPage() {
     </div>
   );
 }
-

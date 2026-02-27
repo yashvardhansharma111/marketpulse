@@ -86,6 +86,10 @@ export default function RegisterPage() {
             style={{ width: step === 1 ? "40%" : "80%" }}
           />
         </div>
+        <div className="mb-4 flex items-center justify-between text-[11px] font-medium text-slate-500">
+          <span className={step === 1 ? "text-sky-600" : ""}>Basic Details</span>
+          <span className={step === 2 ? "text-sky-600" : ""}>Documents</span>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {step === 1 && (
@@ -210,7 +214,7 @@ export default function RegisterPage() {
           <div className="mt-2 flex items-center justify-between">
             <button
               type="button"
-              onClick={() => setStep(step === 1 ? 1 : 1)}
+              onClick={() => setStep(1)}
               className="rounded-xl bg-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
               disabled={step === 1}
             >
@@ -230,7 +234,7 @@ export default function RegisterPage() {
           Already have an account?{" "}
           <a
             href="/login"
-            className="font-semibold text-white underline decoration-sky-400/80 decoration-2 underline-offset-2"
+            className="font-semibold underline decoration-sky-400/80 decoration-2 underline-offset-2"
           >
             Login here
           </a>
@@ -239,4 +243,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/mongodb";
+import { getUserFromSession } from "@/lib/auth";
+import { readScopedConfig } from "@/lib/scoped-config";
 
 type WatchlistItem = {
   symbol: string;
@@ -68,14 +69,16 @@ const defaultConfig: WatchlistConfig = {
 
 export async function GET() {
   try {
-    const db = await getDb();
-    const settings = db.collection("settings");
+    const user = await getUserFromSession();
+    const userId = (user as { _id?: { toString(): string } } | null)?._id?.toString();
 
-    const doc = await settings.findOne<{ value?: WatchlistConfig }>({
+    const { config } = await readScopedConfig<WatchlistConfig>({
       key: "dashboard_watchlist",
+      userId: userId || null,
+      fallback: defaultConfig,
     });
 
-    return NextResponse.json({ config: doc?.value || defaultConfig });
+    return NextResponse.json({ config });
   } catch (error) {
     console.error("Config watchlist error:", error);
     return NextResponse.json(

@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { amount, method, reference, note } = body || {};
+    const { amount, method, reference, note, type } = body || {};
 
     const numericAmount = Number(amount);
     if (!numericAmount || numericAmount <= 0) {
@@ -26,9 +26,25 @@ export async function POST(request: Request) {
 
     const db = await getDb();
     const funds = db.collection("fund_requests");
+    const users = db.collection("users");
+    const requestType = type === "withdraw" ? "withdraw" : "add";
+
+    if (requestType === "withdraw") {
+      const currentUser = await users.findOne<{
+        tradingBalance?: number;
+      }>({ _id: new ObjectId((user as { _id: ObjectId })._id) });
+      const currentBalance = Number(currentUser?.tradingBalance ?? 0);
+      if (numericAmount > currentBalance) {
+        return NextResponse.json(
+          { message: "Withdrawal amount cannot exceed current trading balance" },
+          { status: 400 },
+        );
+      }
+    }
 
     await funds.insertOne({
       userId: new ObjectId((user as { _id: ObjectId })._id),
+      type: requestType,
       amount: numericAmount,
       method: method || "upi",
       reference: reference || "",
@@ -39,7 +55,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       message:
-        "Fund request submitted. Admin will verify payment and update your balance.",
+        requestType === "withdraw"
+          ? "Withdraw request submitted. Admin will verify and process your withdrawal."
+          : "Fund request submitted. Admin will verify payment and update your balance.",
     });
   } catch (error) {
     console.error("Fund request error:", error);
@@ -49,4 +67,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/mongodb";
+import { getUserFromSession } from "@/lib/auth";
+import { readScopedConfig } from "@/lib/scoped-config";
 
 type HomeConfig = {
   indices?: Array<{
@@ -48,14 +49,16 @@ const defaultConfig: HomeConfig = {
 
 export async function GET() {
   try {
-    const db = await getDb();
-    const settings = db.collection("settings");
+    const user = await getUserFromSession();
+    const userId = (user as { _id?: { toString(): string } } | null)?._id?.toString();
 
-    const doc = await settings.findOne<{ value?: HomeConfig }>({
+    const { config } = await readScopedConfig<HomeConfig>({
       key: "dashboard_home",
+      userId: userId || null,
+      fallback: defaultConfig,
     });
 
-    return NextResponse.json({ config: doc?.value || defaultConfig });
+    return NextResponse.json({ config });
   } catch (error) {
     console.error("Config dashboard home error:", error);
     return NextResponse.json(

@@ -46,6 +46,7 @@ export async function GET() {
       return {
         _id: r._id,
         userId: r.userId,
+        type: r.type || "add",
         amount: r.amount,
         method: r.method,
         reference: r.reference,
@@ -66,4 +67,3 @@ export async function GET() {
     );
   }
 }
-
