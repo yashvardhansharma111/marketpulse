@@ -329,11 +329,10 @@ export default function RegisterPage() {
 
               <div className="space-y-1">
                 <label className="text-sm font-medium text-slate-800">
-                  Upload Document
+                  Upload Document (optional)
                 </label>
                 <input
                   type="file"
-                  required
                   onChange={(e) =>
                     setDocumentFile(e.target.files ? e.target.files[0] : null)
                   }
