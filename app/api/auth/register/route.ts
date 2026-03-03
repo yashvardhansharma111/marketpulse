@@ -9,14 +9,24 @@ export async function POST(request: Request) {
     const phone = formData.get("phone")?.toString() ?? "";
     const panNumber = formData.get("panNumber")?.toString() ?? "";
     const aadhaarNumber = formData.get("aadhaarNumber")?.toString() ?? "";
-    const signatureNote = formData.get("signatureNote")?.toString() ?? "";
+    const accountNo = formData.get("accountNo")?.toString() ?? "";
+    const ifscCode = formData.get("ifscCode")?.toString() ?? "";
+    const documentType = formData.get("documentType")?.toString() ?? "";
 
     const photo = formData.get("photo");
-    // panNumber, aadhaarNumber and signatureNote are text fields now
+    const bankProof = formData.get("bankProof");
+    const document = formData.get("document");
 
     if (!fullName || !email || !phone) {
       return NextResponse.json(
         { message: "Full name, email and phone are required" },
+        { status: 400 },
+      );
+    }
+
+    if (!accountNo || !ifscCode) {
+      return NextResponse.json(
+        { message: "Account details are required" },
         { status: 400 },
       );
     }
@@ -38,7 +48,8 @@ export async function POST(request: Request) {
     > = {
       photo: null,
       signature: null,
-      // other document images are no longer collected
+      bankProof: null,
+      document: null,
     };
 
     async function fileToDoc(
@@ -55,6 +66,8 @@ export async function POST(request: Request) {
     documents.photo = await fileToDoc(photo);
     const signatureFile = formData.get("signature");
     documents.signature = await fileToDoc(signatureFile);
+    documents.bankProof = await fileToDoc(bankProof);
+    documents.document = await fileToDoc(document);
 
     await users.insertOne({
       fullName,
@@ -62,7 +75,11 @@ export async function POST(request: Request) {
       phone,
       panNumber: panNumber || null,
       aadhaarNumber: aadhaarNumber || null,
-      signatureNote: signatureNote || null,
+      bankDetails: {
+        accountNo,
+        ifscCode,
+        documentType,
+      },
       status: "pending",
       createdAt: new Date(),
       passwordHash: null,
@@ -73,8 +90,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        message:
-          "Registration submitted. Admin will verify your details and share a password.",
+        message: "Registration submitted successfully",
       },
       { status: 201 },
     );

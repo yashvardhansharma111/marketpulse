@@ -61,6 +61,7 @@ type OrdersSummary = {
 type OrderRow = {
   id: string;
   segmentKey: string;
+  market?: string; // NSE, BSE etc.
   symbol: string;
   side: "BUY" | "SELL";
   qty: number;
@@ -195,6 +196,7 @@ export default function AdminPage() {
               ? rows.map((row) => ({
                   ...row,
                   segmentKey: row.segmentKey || "positions",
+                  market: row.market || "NSE",
                 }))
               : [],
           );
@@ -1591,6 +1593,7 @@ export default function AdminPage() {
                         {
                           id: String(Date.now()),
                           segmentKey: orderSegments[0]?.key || "positions",
+                          market: "NSE",
                           symbol: "",
                           side: "BUY",
                           qty: 0,
@@ -1614,7 +1617,7 @@ export default function AdminPage() {
                       key={row.id}
                       className="rounded-xl border border-slate-800 bg-slate-950 p-2"
                     >
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
                         <select
                           value={row.segmentKey}
                           onChange={(e) =>
@@ -1632,6 +1635,37 @@ export default function AdminPage() {
                             </option>
                           ))}
                         </select>
+                        <input
+                          list="marketOptions"
+                          value={row.market || "NSE"}
+                          onChange={(e) =>
+                            setOrdersRows((prev) =>
+                              prev.map((r, i) =>
+                                i === idx ? { ...r, market: e.target.value } : r,
+                              ),
+                            )
+                          }
+                          className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] text-slate-100 outline-none focus:border-sky-400"
+                          placeholder="Market or Index"
+                        />
+                        <datalist id="marketOptions">
+                          {[
+                            "NSE",
+                            "BSE",
+                            "NIFTY 50",
+                            "SENSEX",
+                            "BANKNIFTY",
+                            "NIFTY IT",
+                            "NIFTY MIDCAP",
+                            "NIFTY SMALLCAP",
+                            "NIFTY FMCG",
+                            "NIFTY PHARMA",
+                            "NIFTY AUTO",
+                            "NIFTY REALTY",
+                          ].map((m) => (
+                            <option key={m} value={m} />
+                          ))}
+                        </datalist>
                         <input
                           value={row.symbol}
                           onChange={(e) =>

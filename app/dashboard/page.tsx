@@ -373,8 +373,25 @@ export default function DashboardPage() {
           { key: "stockSip", label: "Stock SIP" },
           { key: "gtt", label: "GTT" },
         ];
+
+  // determine available markets from orders
+  const availableMarkets = Array.from(
+    new Set((ordersConfig?.orders || []).map((o) => o.market || "NSE")),
+  );
+  const [activeOrderMarket, setActiveOrderMarket] = useState<string>(
+    availableMarkets[0] || "NSE",
+  );
+
+  React.useEffect(() => {
+    if (availableMarkets.length > 0 && !availableMarkets.includes(activeOrderMarket)) {
+      setActiveOrderMarket(availableMarkets[0]);
+    }
+  }, [availableMarkets]);
+
   const filteredOrders = (ordersConfig?.orders || []).filter(
-    (o) => (o.segmentKey || "positions") === activeOrderTool,
+    (o) =>
+      (o.segmentKey || "positions") === activeOrderTool &&
+      (activeOrderMarket ? (o.market || "NSE") === activeOrderMarket : true),
   );
   const reportDetailLines = useMemo(() => {
     if (!activeReport) return [] as string[];
@@ -1213,7 +1230,7 @@ export default function DashboardPage() {
           <div className="space-y-3">
             <section className="rounded-3xl bg-white p-4 shadow-md">
               <h2 className="text-sm font-semibold text-slate-800">Orders</h2>
-              <div className="mt-3 flex gap-2 overflow-auto pb-1 text-[11px]">
+              <div className="mt-3 flex gap-2 flex-wrap items-center pb-1 text-[11px]">
                 {orderSegments.map((item) => (
                   <button
                     key={item.key}
@@ -1228,6 +1245,19 @@ export default function DashboardPage() {
                     {item.label}
                   </button>
                 ))}
+                {availableMarkets.length > 1 && (
+                  <select
+                    value={activeOrderMarket}
+                    onChange={(e) => setActiveOrderMarket(e.target.value)}
+                    className="ml-auto rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] text-slate-600 outline-none"
+                  >
+                    {availableMarkets.map((m) => (
+                      <option key={m} value={m} className="bg-white">
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
@@ -1274,6 +1304,7 @@ export default function DashboardPage() {
                 <table className="min-w-[680px] w-full text-left text-[11px]">
                   <thead className="bg-slate-100 text-slate-700">
                     <tr>
+                      <th className="px-3 py-2">Market</th>
                       <th className="px-3 py-2">Symbol</th>
                       <th className="px-3 py-2">Side</th>
                       <th className="px-3 py-2">Qty</th>
@@ -1287,6 +1318,7 @@ export default function DashboardPage() {
                   <tbody>
                     {filteredOrders.map((o) => (
                         <tr key={o.id} className="border-t border-slate-100">
+                          <td className="px-3 py-2 text-slate-700">{o.market || "NSE"}</td>
                           <td className="px-3 py-2 font-semibold text-slate-800">
                             {o.symbol}
                           </td>
