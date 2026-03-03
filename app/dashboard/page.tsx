@@ -56,6 +56,7 @@ type HomeConfig = {
 type OrderRow = {
   id: string;
   segmentKey: string;
+  market?: string;
   symbol: string;
   side: "BUY" | "SELL";
   qty: number;
@@ -382,7 +383,7 @@ export default function DashboardPage() {
     availableMarkets[0] || "NSE",
   );
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (availableMarkets.length > 0 && !availableMarkets.includes(activeOrderMarket)) {
       setActiveOrderMarket(availableMarkets[0]);
     }
