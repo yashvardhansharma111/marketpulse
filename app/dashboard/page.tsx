@@ -626,15 +626,27 @@ export default function DashboardPage() {
     return `${sign}${num.toFixed(2)}%`;
   }
 
+  // updated pnl algorithm per admin request:
+  // subtract the smaller price from the larger and add 1, then
+  // apply sign based on the order side. (qty still multiplies.)
   function computePnl(o: OrderRow) {
     // Qty is treated as direct order quantity (float allowed)
     const qty = Number(o.qty || 0);
     const avg = Number(o.avgPrice || 0);
     const ltp = Number(o.ltp || 0);
+
+    const big = Math.max(avg, ltp);
+    const small = Math.min(avg, ltp);
+    const singleDiff = big - small + 1;
+
+    let sign = 1;
     if (o.side === "BUY") {
-      return (ltp - avg) * qty;
+      if (ltp < avg) sign = -1;
+    } else {
+      if (avg < ltp) sign = -1;
     }
-    return (avg - ltp) * qty;
+
+    return singleDiff * sign * qty;
   }
 
   async function handleFundSubmit() {
@@ -1781,7 +1793,7 @@ export default function DashboardPage() {
                       {(o.exchange || o.market || "NSE").toUpperCase()}
                     </p>
                     <p className="text-slate-700">
-                      Order: {Number(o.qty ?? 0)} @ {Number(o.avgPrice ?? 0).toFixed(2)}
+                      Order: {Number(o.qty ?? 0)} @ {(Number(o.orderPrice ?? o.avgPrice ?? 0)).toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -2065,7 +2077,9 @@ export default function DashboardPage() {
           <div className="mx-auto w-full max-w-5xl rounded-2xl border border-slate-200 bg-white/95 px-4 py-2 shadow-lg backdrop-blur">
             <div className="flex items-center justify-between">
               <span className="text-lg text-slate-500">‹</span>
-              <p className="text-sm font-semibold text-sky-400">Pending</p>
+              <p className="text-sm font-semibold text-sky-400">
+                Total gains: ₹ {money.format(ordersConfig?.summary?.totalPnl ?? 0)}
+              </p>
               <span className="text-lg text-slate-500">›</span>
               <button
                 type="button"

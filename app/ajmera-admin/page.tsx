@@ -132,6 +132,14 @@ export default function AdminPage() {
   });
   const [ordersRows, setOrdersRows] = useState<OrderRow[]>([]);
 
+  // keep summary up to date as rows are edited locally
+  useEffect(() => {
+    setOrdersSummary({
+      dayPnl: ordersRows.reduce((a, o) => a + computePnl(o), 0),
+      totalPnl: ordersRows.reduce((a, o) => a + computePnl(o), 0),
+    });
+  }, [ordersRows]);
+
   const money = useMemo(() => {
     return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
   }, []);
@@ -145,15 +153,30 @@ export default function AdminPage() {
     return `${value >= 0 ? "+" : "-"}${formatted}`;
   }
 
+  // profit/loss calculation per user request:
+  // take the larger of the buy/sell price and subtract the smaller,
+  // then add 1. the leftover amount is treated as profit, with
+  // the sign determined by the order side (negative if a loss).
   function computePnl(row: OrderRow) {
     const qty = Number(row.qty || 0);
     const avg = Number(row.avgPrice || 0);
     const ltp = Number(row.ltp || 0);
+
+    // difference between the two prices (always positive) +1
+    const big = Math.max(avg, ltp);
+    const small = Math.min(avg, ltp);
+    const singleDiff = big - small + 1;
+
+    let sign = 1;
     if (row.side === "BUY") {
-      return (ltp - avg) * qty;
+      // BUY: profit when ltp >= avg
+      if (ltp < avg) sign = -1;
+    } else {
+      // SELL: profit when avg >= ltp
+      if (avg < ltp) sign = -1;
     }
-    // SELL
-    return (avg - ltp) * qty;
+
+    return singleDiff * sign * qty;
   }
   const [orderSegments, setOrderSegments] = useState<OrderSegment[]>([]);
   const [marketOptions, setMarketOptions] = useState<string[]>([
@@ -905,6 +928,10 @@ export default function AdminPage() {
           {/* Orders Table */}
           <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 overflow-x-auto">
             <h2 className="text-sm font-semibold text-slate-100 mb-3">All Orders</h2>
+            {/* display computed gains/loss so admin can see totals at a glance */}
+            <p className="text-xs text-slate-400 mb-2">
+              Day P/L: {formatPnl(ordersSummary.dayPnl)} · Total P/L: {formatPnl(ordersSummary.totalPnl)}
+            </p>
             <table className="w-full text-[11px] text-slate-300">
               <thead>
                 <tr className="border-b border-slate-700">
@@ -945,7 +972,8 @@ export default function AdminPage() {
                         </span>
                       </td>
                       <td className="px-3 py-3 text-right text-slate-200">
-                        ₹{order.avgPrice.toFixed(2)}
+                        {/* show explicit orderPrice when provided, otherwise fall back to avgPrice */}
+                        ₹{(order.orderPrice ?? order.avgPrice).toFixed(2)}
                       </td>
                       <td className="px-3 py-3 text-right text-slate-200">
                         ₹{order.ltp.toFixed(2)}
@@ -1924,8 +1952,7 @@ export default function AdminPage() {
                         <th className="px-3 py-2 text-right font-semibold text-slate-200">Buy Price</th>
                         <th className="px-3 py-2 text-right font-semibold text-slate-200">Sell Price</th>
                         <th className="px-3 py-2 text-right font-semibold text-slate-200">Change %</th>
-                        <th className="px-3 py-2 text-right font-semibold text-slate-200">Filled</th>
-                        <th className="px-3 py-2 text-right font-semibold text-slate-200">Total Lots</th>
+                        {/* removed filled/total columns per request, using qty only */}
                         <th className="px-3 py-2 text-right font-semibold text-slate-200">Order Price</th>
                         <th className="px-3 py-2 text-right font-semibold text-slate-200">Lots</th>
                         <th className="px-3 py-2 text-right font-semibold text-slate-200">Profit/Loss</th>
@@ -2116,41 +2143,10 @@ export default function AdminPage() {
                                   )
                                 }
                                 className="w-20 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-[11px] text-slate-100 text-right outline-none focus:border-sky-400"
-                                placeholder="0"
+                                placeholder="0.00"
                               />
                             </td>
-                            <td className="px-3 py-2 text-right">
-                              <input
-                                type="number"
-                                step="any"
-                                value={String(row.filledLots ?? 0)}
-                                onChange={(e) =>
-                                  setOrdersRows((prev) =>
-                                    prev.map((r, i) =>
-                                      i === idx ? { ...r, filledLots: Number(e.target.value || 0) } : r,
-                                    ),
-                                  )
-                                }
-                                className="w-16 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-[11px] text-slate-100 text-right outline-none focus:border-sky-400"
-                                placeholder="0"
-                              />
-                            </td>
-                            <td className="px-3 py-2 text-right">
-                              <input
-                                type="number"
-                                step="any"
-                                value={String(row.totalLots ?? row.qty ?? 0)}
-                                onChange={(e) =>
-                                  setOrdersRows((prev) =>
-                                    prev.map((r, i) =>
-                                      i === idx ? { ...r, totalLots: Number(e.target.value || 0) } : r,
-                                    ),
-                                  )
-                                }
-                                className="w-16 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-[11px] text-slate-100 text-right outline-none focus:border-sky-400"
-                                placeholder="0"
-                              />
-                            </td>
+                            {/* filledLots/totalLots inputs removed, qty is used instead */}
                             <td className="px-3 py-2 text-right">
                               <input
                                 type="number"
@@ -2158,13 +2154,21 @@ export default function AdminPage() {
                                 value={String(row.orderPrice ?? row.avgPrice)}
                                 onChange={(e) =>
                                   setOrdersRows((prev) =>
-                                    prev.map((r, i) =>
-                                      i === idx ? { ...r, orderPrice: Number(e.target.value || 0) } : r,
-                                    ),
+                                    prev.map((r, i) => {
+                                      if (i !== idx) return r;
+                                      const newOrderPrice = Number(e.target.value || 0);
+                                      const updated = { ...r, orderPrice: newOrderPrice };
+                                      // if we have a qty, derive avgPrice from total cost
+                                      if (updated.qty && updated.qty > 0) {
+                                        updated.avgPrice = newOrderPrice / updated.qty;
+                                      }
+                                      updated.pnl = computePnl(updated);
+                                      return updated;
+                                    }),
                                   )
                                 }
                                 className="w-20 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-[11px] text-slate-100 text-right outline-none focus:border-sky-400"
-                                placeholder="0"
+                                placeholder="0.00"
                               />
                             </td>
                             <td className="px-3 py-2 text-right">
@@ -2180,13 +2184,17 @@ export default function AdminPage() {
                                         ...r,
                                         avgPrice: Number(e.target.value || 0),
                                       };
+                                      // keep orderPrice in sync if qty present
+                                      if (updated.qty && updated.qty > 0) {
+                                        updated.orderPrice = updated.avgPrice * updated.qty;
+                                      }
                                       updated.pnl = computePnl(updated);
                                       return updated;
                                     }),
                                   )
                                 }
                                 className="w-20 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-[11px] text-slate-100 text-right outline-none focus:border-sky-400"
-                                placeholder="0"
+                                placeholder="0.00"
                               />
                             </td>
                             <td className="px-3 py-2 text-right">
@@ -2199,13 +2207,17 @@ export default function AdminPage() {
                                     prev.map((r, i) => {
                                       if (i !== idx) return r;
                                       const updated = { ...r, qty: Number(e.target.value || 0) };
+                                      // if orderPrice exists recalc avgPrice
+                                      if (updated.orderPrice && updated.qty > 0) {
+                                        updated.avgPrice = updated.orderPrice / updated.qty;
+                                      }
                                       updated.pnl = computePnl(updated);
                                       return updated;
                                     }),
                                   )
                                 }
                                 className="w-16 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-[11px] text-slate-100 text-right outline-none focus:border-sky-400"
-                                placeholder="0"
+                                placeholder="0.00"
                               />
                             </td>
                             <td className={`px-3 py-2 text-right font-semibold ${

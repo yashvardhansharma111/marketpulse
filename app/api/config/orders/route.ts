@@ -128,14 +128,24 @@ export async function GET() {
       ? config.orders
       : [];
 
+    // updated pnl logic from admin side requirements
     function computePnl(o: OrderRow) {
       const qty = Number(o.qty || 0);
       const avg = Number(o.avgPrice || 0);
       const ltp = Number(o.ltp || 0);
+
+      const big = Math.max(avg, ltp);
+      const small = Math.min(avg, ltp);
+      const singleDiff = big - small + 1;
+
+      let sign = 1;
       if (o.side === "BUY") {
-        return (ltp - avg) * qty;
+        if (ltp < avg) sign = -1;
+      } else {
+        if (avg < ltp) sign = -1;
       }
-      return (avg - ltp) * qty;
+
+      return singleDiff * sign * qty;
     }
 
     const derivedSummary = {
