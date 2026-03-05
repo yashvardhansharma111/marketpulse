@@ -136,10 +136,17 @@ export default function AdminPage() {
     return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
   }, []);
 
+  function formatPnl(value: number) {
+    const abs = Math.abs(Number(value || 0));
+    const formatted = abs.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    return `${value >= 0 ? "+" : "-"}${formatted}`;
+  }
+
   function computePnl(row: OrderRow) {
-    const lots = Number(row.qty || 0);
-    const lotSize = Number(row.lotSize || 1);
-    const qty = lots * lotSize;
+    const qty = Number(row.qty || 0);
     const avg = Number(row.avgPrice || 0);
     const ltp = Number(row.ltp || 0);
     if (row.side === "BUY") {
@@ -952,7 +959,7 @@ export default function AdminPage() {
                               : "text-red-400"
                           }`}
                         >
-                          {money.format(computePnl(order))}
+                          {formatPnl(computePnl(order))}
                         </span>
                       </td>
                     </tr>
@@ -2032,6 +2039,8 @@ export default function AdminPage() {
                             </td>
                             <td className="px-3 py-2 text-right">
                               <input
+                                type="number"
+                                step="any"
                                 value={String(row.strikePrice ?? 0)}
                                 onChange={(e) =>
                                   setOrdersRows((prev) =>
@@ -2074,6 +2083,8 @@ export default function AdminPage() {
                             </td>
                             <td className="px-3 py-2 text-right">
                               <input
+                                type="number"
+                                step="any"
                                 value={String(row.ltp)}
                                 onChange={(e) =>
                                   setOrdersRows((prev) =>
@@ -2094,6 +2105,8 @@ export default function AdminPage() {
                             </td>
                             <td className="px-3 py-2 text-right">
                               <input
+                                type="number"
+                                step="any"
                                 value={String(row.changePct ?? 0)}
                                 onChange={(e) =>
                                   setOrdersRows((prev) =>
@@ -2108,6 +2121,8 @@ export default function AdminPage() {
                             </td>
                             <td className="px-3 py-2 text-right">
                               <input
+                                type="number"
+                                step="any"
                                 value={String(row.filledLots ?? 0)}
                                 onChange={(e) =>
                                   setOrdersRows((prev) =>
@@ -2122,6 +2137,8 @@ export default function AdminPage() {
                             </td>
                             <td className="px-3 py-2 text-right">
                               <input
+                                type="number"
+                                step="any"
                                 value={String(row.totalLots ?? row.qty ?? 0)}
                                 onChange={(e) =>
                                   setOrdersRows((prev) =>
@@ -2136,6 +2153,8 @@ export default function AdminPage() {
                             </td>
                             <td className="px-3 py-2 text-right">
                               <input
+                                type="number"
+                                step="any"
                                 value={String(row.orderPrice ?? row.avgPrice)}
                                 onChange={(e) =>
                                   setOrdersRows((prev) =>
@@ -2150,6 +2169,8 @@ export default function AdminPage() {
                             </td>
                             <td className="px-3 py-2 text-right">
                               <input
+                                type="number"
+                                step="any"
                                 value={String(row.avgPrice)}
                                 onChange={(e) =>
                                   setOrdersRows((prev) =>
@@ -2170,6 +2191,8 @@ export default function AdminPage() {
                             </td>
                             <td className="px-3 py-2 text-right">
                               <input
+                                type="number"
+                                step="any"
                                 value={String(row.qty)}
                                 onChange={(e) =>
                                   setOrdersRows((prev) =>
@@ -2190,7 +2213,7 @@ export default function AdminPage() {
                                 ? "text-emerald-400"
                                 : "text-red-400"
                             }`}>
-                              {money.format(computePnl(row))}
+                              {formatPnl(computePnl(row))}
                             </td>
                             <td className="px-3 py-2 text-center">
                               <button

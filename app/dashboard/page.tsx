@@ -329,6 +329,15 @@ export default function DashboardPage() {
     return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
   }, []);
 
+  function formatPnl(value: number) {
+    const abs = Math.abs(Number(value || 0));
+    const formatted = abs.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    return `${value >= 0 ? "+" : "-"}${formatted}`;
+  }
+
   const globalMarkets = useMemo<MarketCard[]>(
     () => [
       {
@@ -554,8 +563,8 @@ export default function DashboardPage() {
     }
     if (activeReport === "Profit & Loss") {
       return [
-        `Day P/L: ₹ ${money.format(ordersConfig?.summary?.dayPnl ?? 0)}`,
-        `Total P/L: ₹ ${money.format(ordersConfig?.summary?.totalPnl ?? 0)}`,
+        `Day P/L: ? ${formatPnl(ordersConfig?.summary?.dayPnl ?? 0)}`,
+        `Total P/L: ? ${formatPnl(ordersConfig?.summary?.totalPnl ?? 0)}`,
       ];
     }
     if (activeReport === "Statement / Ledger") {
@@ -618,10 +627,8 @@ export default function DashboardPage() {
   }
 
   function computePnl(o: OrderRow) {
-    // we allow orders to specify a lotSize; if present qty is treated as number of lots
-    const lots = Number(o.qty || 0);
-    const lotSize = Number(o.lotSize || 1);
-    const qty = lots * lotSize;
+    // Qty is treated as direct order quantity (float allowed)
+    const qty = Number(o.qty || 0);
     const avg = Number(o.avgPrice || 0);
     const ltp = Number(o.ltp || 0);
     if (o.side === "BUY") {
@@ -1760,7 +1767,7 @@ export default function DashboardPage() {
                           computePnl(o) >= 0 ? "text-emerald-600" : "text-rose-600"
                         }`}
                       >
-                        P/L: {computePnl(o) >= 0 ? "+" : ""}{money.format(computePnl(o))}
+                        P/L: {formatPnl(computePnl(o))}
                       </p>
                     </div>
                   </div>
@@ -1774,8 +1781,7 @@ export default function DashboardPage() {
                       {(o.exchange || o.market || "NSE").toUpperCase()}
                     </p>
                     <p className="text-slate-700">
-                      Lot: {Number(o.filledLots ?? 0)}/{Number(o.totalLots ?? o.qty ?? 0)} @{" "}
-                      {Number(o.orderPrice ?? o.avgPrice ?? 0).toFixed(2)}
+                      Order: {Number(o.qty ?? 0)} @ {Number(o.avgPrice ?? 0).toFixed(2)}
                     </p>
                   </div>
                 </div>

@@ -74,9 +74,7 @@ export async function GET(request: Request) {
     // derive summary from rows if present
     const orders: OrderRow[] = Array.isArray(config.orders) ? config.orders : [];
     function computePnl(o: OrderRow) {
-      const lots = Number(o.qty || 0);
-      const lotSize = Number(o.lotSize || 1);
-      const qty = lots * lotSize;
+      const qty = Number(o.qty || 0);
       const avg = Number(o.avgPrice || 0);
       const ltp = Number(o.ltp || 0);
       if (o.side === "BUY") {
