@@ -1760,7 +1760,7 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700">
-                      {o.orderTag || (o.status === "OPEN" ? "Amo Submitted" : "Completed")}
+                      {o.orderTag || "At Market"}
                     </span>
                   </div>
                   <div className="mt-1 flex items-end justify-between">

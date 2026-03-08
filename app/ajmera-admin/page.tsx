@@ -342,7 +342,7 @@ export default function AdminPage() {
                   productType: row.productType || "Delivery",
                   optionType: row.optionType || "CE",
                   exchange: row.exchange || row.market || "NSEFO",
-                  orderTag: row.orderTag || "Amo Submitted",
+                  orderTag: row.orderTag || "At Market",
                 }))
               : [],
           );
@@ -479,7 +479,7 @@ export default function AdminPage() {
                 productType: row.productType || "Delivery",
                 optionType: row.optionType || "CE",
                 exchange: row.exchange || row.market || "NSEFO",
-                orderTag: row.orderTag || "Amo Submitted",
+                orderTag: row.orderTag || "At Market",
               }))
             : [],
         );
@@ -2095,7 +2095,7 @@ export default function AdminPage() {
                             optionType: "CE",
                             strikePrice: 0,
                             exchange: "NSEFO",
-                            orderTag: "Amo Submitted",
+                            orderTag: "At Market",
                             changePct: 0,
                             filledLots: 0,
                             totalLots: 1,
@@ -2284,8 +2284,8 @@ export default function AdminPage() {
                               />
                             </td>
                             <td className="px-3 py-2">
-                              <input
-                                value={row.orderTag || "Amo Submitted"}
+                              <select
+                                value={row.orderTag || "At Market"}
                                 onChange={(e) =>
                                   setOrdersRows((prev) =>
                                     prev.map((r, i) =>
@@ -2294,8 +2294,10 @@ export default function AdminPage() {
                                   )
                                 }
                                 className="w-28 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-[11px] text-slate-100 outline-none focus:border-sky-400"
-                                placeholder="Amo Submitted"
-                              />
+                              >
+                                <option value="At Market">At Market</option>
+                                <option value="At Limit">At Limit</option>
+                              </select>
                             </td>
                             <td className="px-3 py-2 text-right">
                               <input
