@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { userId, password } = body || {};
+    const { userId, password, clientId } = body || {};
 
     if (!userId) {
       return NextResponse.json(
@@ -33,15 +33,37 @@ export async function POST(request: Request) {
       );
     }
 
+    const requestedClientId = (clientId ?? "").toString().trim();
+
     const db = await getDb();
     const users = db.collection("users");
 
-    const user = await users.findOne<{ email?: string; status?: string }>({
+    const user = await users.findOne<{ email?: string; status?: string; clientId?: string }>({
       _id: new ObjectId(userId),
     });
 
     if (!user) {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
+    }
+
+    const existingClientId = (user.clientId ?? "").toString().trim();
+    const finalClientId = requestedClientId || existingClientId;
+    if (!finalClientId) {
+      return NextResponse.json(
+        { message: "clientId is required for this user" },
+        { status: 400 },
+      );
+    }
+
+    // if changing/setting clientId, ensure uniqueness
+    if (finalClientId !== existingClientId) {
+      const dup = await users.findOne({ clientId: finalClientId });
+      if (dup) {
+        return NextResponse.json(
+          { message: "Client ID already exists" },
+          { status: 409 },
+        );
+      }
     }
 
     const passwordHash = await bcrypt.hash(plainPassword, 10);
@@ -52,6 +74,7 @@ export async function POST(request: Request) {
         $set: {
           passwordHash,
           adminPlainPassword: plainPassword,
+          clientId: finalClientId,
           status: "active",
           activatedAt: new Date(),
         },
@@ -61,6 +84,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       message: "Password set",
       email: user.email,
+      clientId: finalClientId,
       plainPassword,
     });
   } catch (error) {

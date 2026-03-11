@@ -662,19 +662,22 @@ export default function AdminPage() {
         return;
       }
 
+      const clientId = (clientIdDrafts[userId] || "").trim();
+
       const res = await fetch("/api/admin/generate-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, password }),
+        body: JSON.stringify({ userId, password, clientId }),
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.message || "Failed to generate password");
       }
       setActionMessage(
-        `Password for ${data.email}: ${data.plainPassword}. Share this securely with the user.`,
+        `Password for ${data.email} (${data.clientId || "-"}): ${data.plainPassword}. Share this securely with the user.`,
       );
       setPasswordDrafts((prev) => ({ ...prev, [userId]: "" }));
+      setClientIdDrafts((prev) => ({ ...prev, [userId]: "" }));
       await fetchUsers();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
@@ -971,7 +974,32 @@ export default function AdminPage() {
                   users.map((user) => (
                     <tr key={user._id} className="border-b border-slate-800 hover:bg-slate-800/50 transition">
                       <td className="px-3 py-3 text-slate-50 font-medium">{user.fullName}</td>
-                      <td className="px-3 py-3 text-slate-200 font-semibold">{user.clientId || "-"}</td>
+                      <td className="px-3 py-3 text-slate-200">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <span className="font-semibold">{user.clientId || "-"}</span>
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <input
+                              type="text"
+                              value={clientIdDrafts[user._id] || ""}
+                              onChange={(e) =>
+                                setClientIdDrafts((prev) => ({
+                                  ...prev,
+                                  [user._id]: e.target.value,
+                                }))
+                              }
+                              className="w-full rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-[11px] text-slate-50 outline-none focus:border-sky-400"
+                              placeholder="Edit Client ID"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void handleSetClientId(user._id)}
+                              className="shrink-0 rounded-full bg-sky-500 px-3 py-1 text-[11px] font-semibold text-white hover:bg-sky-600"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      </td>
                       <td className="px-3 py-3 text-slate-400">{user.email}</td>
                       <td className="px-3 py-3">
                         <span
@@ -1151,7 +1179,7 @@ export default function AdminPage() {
                       <p className="mt-1 text-[11px] text-slate-400">
                         Current: {user.clientId || "-"}
                       </p>
-                      <div className="mt-2 flex gap-2">
+                      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                         <input
                           type="text"
                           value={clientIdDrafts[user._id] || ""}
@@ -1177,7 +1205,7 @@ export default function AdminPage() {
                       {user.phone} · PAN {user.panNumber || "-"} · Aadhaar{" "}
                       {user.aadhaarNumber || "-"}
                     </p>
-                    <div className="mt-2 flex gap-2">
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                       <input
                         type="text"
                         value={passwordDrafts[user._id] || ""}
@@ -1274,7 +1302,7 @@ export default function AdminPage() {
                         {user.clientId || "-"}
                       </span>
                     </p>
-                    <div className="mt-2 flex gap-2">
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                       <input
                         type="text"
                         value={clientIdDrafts[user._id] || ""}
@@ -1304,7 +1332,7 @@ export default function AdminPage() {
                         {user.adminPlainPassword || "-"}
                       </span>
                     </p>
-                    <div className="mt-2 flex gap-2">
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                       <input
                         type="text"
                         value={passwordDrafts[user._id] || ""}
@@ -1407,6 +1435,27 @@ export default function AdminPage() {
                         {user.clientId || "-"}
                       </span>
                     </p>
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                      <input
+                        type="text"
+                        value={clientIdDrafts[user._id] || ""}
+                        onChange={(e) =>
+                          setClientIdDrafts((prev) => ({
+                            ...prev,
+                            [user._id]: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] text-slate-50 outline-none focus:border-sky-400"
+                        placeholder="Change Client ID"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleSetClientId(user._id)}
+                        className="shrink-0 rounded-full bg-sky-500 px-3 py-1 text-[11px] font-semibold text-white hover:bg-sky-600"
+                      >
+                        Update
+                      </button>
+                    </div>
                     <p className="text-[11px] text-rose-400">
                       BLOCKED · Cannot login
                     </p>

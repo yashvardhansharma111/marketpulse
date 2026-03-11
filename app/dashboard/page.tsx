@@ -1798,7 +1798,7 @@ export default function DashboardPage() {
                     <p className="text-slate-700">
                       Lots: {Number(o.lots ?? o.qty ?? 0)} @ {Number(o.buyPrice ?? o.orderPrice ?? o.avgPrice ?? 0).toFixed(2)}
                       {typeof o.sellPrice === "number" && Number.isFinite(o.sellPrice) ? (
-                        <span> · Sell: {Number(o.sellPrice).toFixed(2)}</span>
+                        <span className="ml-1">{Number(o.sellPrice).toFixed(2)}</span>
                       ) : null}
                     </p>
                   </div>
