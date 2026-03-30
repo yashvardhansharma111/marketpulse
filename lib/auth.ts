@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { ObjectId } from "mongodb";
 import { getDb } from "./mongodb";
 
-const SESSION_COOKIE_NAME = "ajx_session";
+export const SESSION_COOKIE_NAME = "ajx_session";
 const SESSION_TTL_MS = 10 * 365 * 24 * 60 * 60 * 1000; // 10 years
 
 function hashToken(token: string): string {
@@ -36,14 +36,13 @@ export async function createUserSession(userId: ObjectId) {
   return { token, response };
 }
 
-export async function getUserFromSession() {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME);
-  if (!sessionCookie?.value) {
+/** Resolve user from raw session token (cookie or Authorization Bearer). */
+export async function getUserBySessionToken(token: string | undefined | null) {
+  if (!token) {
     return null;
   }
 
-  const tokenHash = hashToken(sessionCookie.value);
+  const tokenHash = hashToken(token);
 
   const db = await getDb();
   const sessions = db.collection("sessions");
@@ -61,8 +60,21 @@ export async function getUserFromSession() {
   }
 
   const users = db.collection("users");
-  const user = await users.findOne({ _id: new ObjectId(session.userId) });
-
-  return user;
+  return users.findOne({ _id: new ObjectId(session.userId) });
 }
 
+export async function getUserFromSession() {
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME);
+  return getUserBySessionToken(sessionCookie?.value);
+}
+
+/** App / API routes: prefer `Authorization: Bearer <token>` (mobile), else session cookie (web). */
+export async function getUserFromRequest(request: Request) {
+  const auth = request.headers.get("authorization");
+  if (auth?.startsWith("Bearer ")) {
+    const token = auth.slice(7).trim();
+    return getUserBySessionToken(token);
+  }
+  return getUserFromSession();
+}

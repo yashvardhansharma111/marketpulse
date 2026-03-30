@@ -8,6 +8,7 @@ type HomeConfig = {
     value: number;
     change: number;
     changePct: number;
+    tvSymbol?: string;
   }>;
   chart?: {
     title?: string;

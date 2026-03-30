@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ajmeraexchange",
-  description: "Ajmeraexchange trading platform",
+  title: "Market Pulse Admin",
+  description: "Market Pulse admin panel",
 };
 
 export default function RootLayout({

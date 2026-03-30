@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUserFromSession } from "@/lib/auth";
+import { getUserFromRequest } from "@/lib/auth";
 
 type StoredImage = {
   data?: Buffer;
@@ -43,9 +43,9 @@ function toBytes(input: unknown): Uint8Array | null {
   return null;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const user = await getUserFromSession();
+    const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
     }

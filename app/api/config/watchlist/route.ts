@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getUserFromSession } from "@/lib/auth";
+import { getUserFromRequest } from "@/lib/auth";
 import { readScopedConfig } from "@/lib/scoped-config";
 
 type WatchlistItem = {
@@ -67,9 +67,9 @@ const defaultConfig: WatchlistConfig = {
   ],
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const user = await getUserFromSession();
+    const user = await getUserFromRequest(request);
     const userId = (user as { _id?: { toString(): string } } | null)?._id?.toString();
 
     const { config } = await readScopedConfig<WatchlistConfig>({

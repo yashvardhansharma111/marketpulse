@@ -4,14 +4,14 @@ import { NextResponse } from "next/server";
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
-    const fullName = formData.get("fullName")?.toString() ?? "";
-    const email = formData.get("email")?.toString() ?? "";
-    const phone = formData.get("phone")?.toString() ?? "";
-    const panNumber = formData.get("panNumber")?.toString() ?? "";
-    const aadhaarNumber = formData.get("aadhaarNumber")?.toString() ?? "";
-    const accountNo = formData.get("accountNo")?.toString() ?? "";
-    const ifscCode = formData.get("ifscCode")?.toString() ?? "";
-    const documentType = formData.get("documentType")?.toString() ?? "";
+    const fullName = formData.get("fullName")?.toString().trim() ?? "";
+    const email = formData.get("email")?.toString().trim().toLowerCase() ?? "";
+    const phone = formData.get("phone")?.toString().trim() ?? "";
+    const panNumber = formData.get("panNumber")?.toString().trim().toUpperCase() ?? "";
+    const aadhaarNumber = formData.get("aadhaarNumber")?.toString().trim() ?? "";
+    const accountNo = formData.get("accountNo")?.toString().trim() ?? "";
+    const ifscCode = formData.get("ifscCode")?.toString().trim().toUpperCase() ?? "";
+    const documentType = formData.get("documentType")?.toString().trim() ?? "";
 
     const photo = formData.get("photo");
     const bankProof = formData.get("bankProof");
@@ -102,4 +102,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

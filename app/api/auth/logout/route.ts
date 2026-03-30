@@ -3,10 +3,16 @@ import crypto from "crypto";
 import { cookies } from "next/headers";
 import { getDb } from "@/lib/mongodb";
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const sessionToken = cookieStore.get("ajx_session")?.value;
+    const auth = request.headers.get("authorization");
+    let sessionToken: string | undefined;
+    if (auth?.startsWith("Bearer ")) {
+      sessionToken = auth.slice(7).trim();
+    } else {
+      const cookieStore = await cookies();
+      sessionToken = cookieStore.get("ajx_session")?.value;
+    }
 
     if (sessionToken) {
       const tokenHash = crypto

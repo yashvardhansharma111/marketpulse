@@ -1,11 +1,52 @@
 import { NextResponse } from "next/server";
-import { getUserFromSession } from "@/lib/auth";
+import { getUserFromRequest } from "@/lib/auth";
 import { getDb } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 
+export async function GET(request: Request) {
+  try {
+    const user = await getUserFromRequest(request);
+    if (!user) {
+      return NextResponse.json(
+        { message: "Not authenticated" },
+        { status: 401 },
+      );
+    }
+
+    const db = await getDb();
+    const funds = db.collection("fund_requests");
+
+    const requests = await funds
+      .find({ userId: new ObjectId((user as { _id: ObjectId })._id) })
+      .sort({ createdAt: -1 })
+      .limit(25)
+      .toArray();
+
+    return NextResponse.json({
+      requests: requests.map((item) => ({
+        _id: item._id,
+        type: item.type || "add",
+        amount: item.amount,
+        method: item.method || "upi",
+        reference: item.reference || "",
+        note: item.note || "",
+        status: item.status || "pending",
+        createdAt: item.createdAt,
+        processedAt: item.processedAt || null,
+      })),
+    });
+  } catch (error) {
+    console.error("Fund request list error:", error);
+    return NextResponse.json(
+      { message: "Failed to load fund requests" },
+      { status: 500 },
+    );
+  }
+}
+
 export async function POST(request: Request) {
   try {
-    const user = await getUserFromSession();
+    const user = await getUserFromRequest(request);
     if (!user) {
       return NextResponse.json(
         { message: "Not authenticated" },

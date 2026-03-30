@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { ObjectId } from "mongodb";
 import { cookies } from "next/headers";
+import { sendClientCredentialsEmail } from "@/lib/mailer";
 
 export async function POST(request: Request) {
   try {
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
     const db = await getDb();
     const users = db.collection("users");
 
-    const user = await users.findOne<{ email?: string; status?: string; clientId?: string }>({
+    const user = await users.findOne<{ email?: string; status?: string; clientId?: string; fullName?: string }>({
       _id: new ObjectId(userId),
     });
 
@@ -81,11 +82,34 @@ export async function POST(request: Request) {
       },
     );
 
+    let emailSent = false;
+    let emailWarning: string | null = null;
+
+    if (user.email) {
+      try {
+        await sendClientCredentialsEmail({
+          to: user.email,
+          fullName: user.fullName,
+          clientId: finalClientId,
+          password: plainPassword,
+        });
+        emailSent = true;
+      } catch (mailError) {
+        console.error("Credentials email error:", mailError);
+        emailWarning = "Credentials were saved, but email delivery failed.";
+      }
+    } else {
+      emailWarning = "Credentials were saved, but the user has no email address.";
+    }
+
     return NextResponse.json({
-      message: "Password set",
+      message: emailSent
+        ? "Password set and credentials emailed"
+        : "Password set",
       email: user.email,
       clientId: finalClientId,
-      plainPassword,
+      emailSent,
+      emailWarning,
     });
   } catch (error) {
     console.error("Generate password error:", error);
@@ -95,4 +119,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
