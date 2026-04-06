@@ -1,3 +1,4 @@
+import { apiErrorResponse } from "@/lib/api-error";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { deleteScopedConfig, readScopedConfig, upsertScopedConfig } from "@/lib/scoped-config";
@@ -103,11 +104,7 @@ export async function GET(request: Request) {
       scopeUserId: scopeUserId || null,
     });
   } catch (error) {
-    console.error("Admin orders get error:", error);
-    return NextResponse.json(
-      { message: "Failed to fetch orders" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Admin orders get error:", "Failed to fetch orders");
   }
 }
 
@@ -147,11 +144,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "Orders updated" });
   } catch (error) {
-    console.error("Admin orders save error:", error);
-    return NextResponse.json(
-      { message: "Failed to save orders" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Admin orders save error:", "Failed to save orders");
   }
 }
 
@@ -167,10 +160,6 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ message: "Orders config deleted" });
   } catch (error) {
-    console.error("Admin orders delete error:", error);
-    return NextResponse.json(
-      { message: "Failed to delete orders" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Admin orders delete error:", "Failed to delete orders");
   }
 }

@@ -1,3 +1,4 @@
+import { apiErrorResponse } from "@/lib/api-error";
 import { getDb } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
@@ -112,10 +113,6 @@ export async function POST(request: Request) {
       emailWarning,
     });
   } catch (error) {
-    console.error("Generate password error:", error);
-    return NextResponse.json(
-      { message: "Failed to set password" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Generate password error:", "Failed to set password");
   }
 }

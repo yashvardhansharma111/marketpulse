@@ -1,27 +1,6 @@
 import { NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
-import { readScopedConfig } from "@/lib/scoped-config";
-
-type OrderRow = {
-  id: string;
-  segmentKey: string;
-  market?: string;
-  symbol: string;
-  side: "BUY" | "SELL";
-  productType?: string;
-  exchange?: string;
-  qty: number;
-  avgPrice: number;
-  ltp: number;
-  pnl: number;
-  status: "OPEN" | "CLOSED";
-  time?: string;
-  startDate?: string;
-};
-
-type OrdersConfig = {
-  orders?: OrderRow[];
-};
+import { getEffectiveOrdersConfigForUser } from "@/lib/effective-orders-config";
 
 function escapeCsv(value: unknown) {
   const s = String(value ?? "");
@@ -40,11 +19,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
     }
 
-    const { config } = await readScopedConfig<OrdersConfig>({
-      key: "dashboard_orders",
-      userId,
-      fallback: { orders: [] },
-    });
+    const config = await getEffectiveOrdersConfigForUser(userId);
 
     const orders = Array.isArray(config.orders) ? config.orders : [];
     const header = [

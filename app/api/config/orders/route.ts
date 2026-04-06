@@ -1,154 +1,11 @@
 import { NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
-import { readScopedConfig } from "@/lib/scoped-config";
+import {
+  getEffectiveOrdersConfigForUser,
+  type OrderRowEffective,
+} from "@/lib/effective-orders-config";
 
-type OrderSegment = {
-  key: string;
-  label: string;
-};
-
-type OrderRow = {
-  id: string;
-  segmentKey: string;
-  market?: string;
-  symbol: string;
-  side: "BUY" | "SELL";
-  productType?: string;
-  optionType?: string;
-  strikePrice?: number;
-  exchange?: string;
-  orderTag?: string;
-  changePct?: number;
-  filledLots?: number;
-  totalLots?: number;
-  orderPrice?: number;
-  qty: number;
-  lotSize?: number;
-  startDate?: string;
-  avgPrice: number;
-  ltp: number;
-  buyPrice?: number;
-  sellPrice?: number;
-  lots?: number;
-  pnlManual?: boolean;
-  pnlPct?: number;
-  pnl: number;
-  status: "OPEN" | "CLOSED";
-  time?: string;
-};
-
-type OrdersConfig = {
-  summary?: {
-    dayPnl: number;
-    totalPnl: number;
-  };
-  segments: OrderSegment[];
-  orders: OrderRow[];
-};
-
-const defaultConfig: OrdersConfig = {
-  summary: {
-    dayPnl: 1250,
-    totalPnl: -4200,
-  },
-  segments: [
-    { key: "positions", label: "Positions" },
-    { key: "openOrders", label: "Open Orders" },
-    { key: "baskets", label: "Baskets" },
-    { key: "stockSip", label: "Stock SIP" },
-    { key: "gtt", label: "GTT" },
-  ],
-  orders: [
-    {
-      id: "1",
-      segmentKey: "positions",
-      market: "NSE",
-      symbol: "RELIANCE",
-      side: "BUY",
-      productType: "Delivery",
-      optionType: "CE",
-      strikePrice: 24850,
-      exchange: "NSEFO",
-      orderTag: "Amo Submitted",
-      changePct: 0,
-      filledLots: 0,
-      totalLots: 1,
-      orderPrice: 293.1,
-      qty: 10,
-      lotSize: 1,
-      startDate: "2024-01-01",
-      avgPrice: 2825,
-      ltp: 2850,
-      buyPrice: 150,
-      sellPrice: 180,
-      lots: 1,
-      pnlManual: false,
-      pnlPct: 0,
-      pnl: 250,
-      status: "OPEN",
-      time: "11:05",
-    },
-    {
-      id: "2",
-      segmentKey: "openOrders",
-      market: "NSE",
-      symbol: "TCS",
-      side: "SELL",
-      productType: "Delivery",
-      qty: 5,
-      lotSize: 1,
-      startDate: "2024-01-02",
-      avgPrice: 3950,
-      ltp: 3920,
-      buyPrice: 180,
-      sellPrice: 150,
-      lots: 1,
-      pnlManual: false,
-      pnlPct: 0,
-      pnl: 150,
-      status: "OPEN",
-      time: "12:40",
-    },
-    {
-      id: "3",
-      segmentKey: "positions",
-      market: "NSE",
-      symbol: "HDFCBANK",
-      side: "BUY",
-      productType: "Delivery",
-      qty: 20,
-      lotSize: 1,
-      startDate: "2024-01-03",
-      avgPrice: 1560,
-      ltp: 1540,
-      buyPrice: 150,
-      sellPrice: 120,
-      lots: 1,
-      pnlManual: false,
-      pnlPct: 0,
-      pnl: -400,
-      status: "CLOSED",
-      time: "10:10",
-    },
-  ],
-};
-
-export async function GET(request: Request) {
-  try {
-    const user = await getUserFromRequest(request);
-    const userId = (user as { _id?: { toString(): string } } | null)?._id?.toString();
-
-    const { config } = await readScopedConfig<OrdersConfig>({
-      key: "dashboard_orders",
-      userId: userId || null,
-      fallback: defaultConfig,
-    });
-
-    const orders: OrderRow[] = Array.isArray(config.orders)
-      ? config.orders
-      : [];
-
-    function computePnl(o: OrderRow) {
+function computePnl(o: OrderRowEffective) {
       if (o.pnlManual && typeof o.pnl === "number" && Number.isFinite(o.pnl)) {
         return o.pnl;
       }
@@ -161,7 +18,18 @@ export async function GET(request: Request) {
         return (buy - sell) * lots;
       }
       return (sell - buy) * lots;
-    }
+}
+
+export async function GET(request: Request) {
+  try {
+    const user = await getUserFromRequest(request);
+    const userId = (user as { _id?: { toString(): string } } | null)?._id?.toString();
+
+    const config = await getEffectiveOrdersConfigForUser(userId);
+
+    const orders: OrderRowEffective[] = Array.isArray(config.orders)
+      ? config.orders
+      : [];
 
     const derivedSummary = {
       dayPnl: orders.reduce((a, o) => a + computePnl(o), 0),
@@ -172,10 +40,7 @@ export async function GET(request: Request) {
       config: {
         ...config,
         summary: derivedSummary,
-        segments:
-          Array.isArray(config.segments) && config.segments.length > 0
-            ? config.segments
-            : defaultConfig.segments,
+        segments: Array.isArray(config.segments) ? config.segments : [],
       },
     });
   } catch (error) {

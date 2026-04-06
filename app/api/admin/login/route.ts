@@ -1,3 +1,4 @@
+import { apiErrorResponse } from "@/lib/api-error";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -38,10 +39,10 @@ export async function POST(request: Request) {
 
     return response;
   } catch (error) {
-    console.error("Admin login error:", error);
-    return NextResponse.json(
-      { message: "Something went wrong while authenticating admin" },
-      { status: 500 },
+    return apiErrorResponse(
+      error,
+      "Admin login error:",
+      "Something went wrong while authenticating admin",
     );
   }
 }

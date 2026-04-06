@@ -1,3 +1,4 @@
+import { apiErrorResponse } from "@/lib/api-error";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { deleteScopedConfig, readScopedConfig, upsertScopedConfig } from "@/lib/scoped-config";
@@ -49,11 +50,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ config, source, scopeUserId: scopeUserId || null });
   } catch (error) {
-    console.error("Admin watchlist get error:", error);
-    return NextResponse.json(
-      { message: "Failed to fetch watchlist" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Admin watchlist get error:", "Failed to fetch watchlist");
   }
 }
 
@@ -85,11 +82,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "Watchlist updated" });
   } catch (error) {
-    console.error("Admin watchlist save error:", error);
-    return NextResponse.json(
-      { message: "Failed to save watchlist" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Admin watchlist save error:", "Failed to save watchlist");
   }
 }
 
@@ -105,10 +98,6 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ message: "Watchlist config deleted" });
   } catch (error) {
-    console.error("Admin watchlist delete error:", error);
-    return NextResponse.json(
-      { message: "Failed to delete watchlist" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Admin watchlist delete error:", "Failed to delete watchlist");
   }
 }

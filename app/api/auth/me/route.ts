@@ -11,20 +11,24 @@ export async function GET(request: Request) {
       );
     }
 
-    const {
-      passwordHash,
-      ...safeUser
-    } = user as Record<string, unknown> & { passwordHash?: string };
+    const u = user as Record<string, unknown> & {
+      passwordHash?: string;
+      documents?: { photo?: { data?: unknown } };
+    };
 
-    const tradingBalance =
-      (safeUser.tradingBalance as number | undefined) ?? 0;
-    const margin = (safeUser.margin as number | undefined) ?? 0;
+    const { passwordHash, documents, ...rest } = u;
+
+    const tradingBalance = (rest.tradingBalance as number | undefined) ?? 0;
+    const margin = (rest.margin as number | undefined) ?? 0;
+
+    const hasProfilePhoto = Boolean(documents?.photo?.data);
 
     return NextResponse.json({
       user: {
-        ...safeUser,
+        ...rest,
         tradingBalance,
         margin,
+        hasProfilePhoto,
       },
     });
   } catch (error) {

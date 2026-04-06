@@ -1,3 +1,4 @@
+import { apiErrorResponse } from "@/lib/api-error";
 import { getDb } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -52,10 +53,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "Client created", clientId });
   } catch (error) {
-    console.error("Create client error:", error);
-    return NextResponse.json(
-      { message: "Failed to create client" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Create client error:", "Failed to create client");
   }
 }

@@ -1,3 +1,4 @@
+import { apiErrorResponse } from "@/lib/api-error";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
@@ -57,11 +58,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "Fund request rejected" });
   } catch (error) {
-    console.error("Admin reject fund error:", error);
-    return NextResponse.json(
-      { message: "Failed to reject fund" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Admin reject fund error:", "Failed to reject fund");
   }
 }
 

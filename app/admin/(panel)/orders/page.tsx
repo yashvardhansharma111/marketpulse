@@ -208,7 +208,9 @@ export default function AdminOrdersPage() {
     <div className="mx-auto max-w-[100rem]">
       <h2 className="text-lg font-semibold text-slate-900">Orders &amp; positions</h2>
       <p className="mt-1 text-sm text-slate-600">
-        Dashboard order rows and segment tabs. Use scope to override a single user&apos;s view.
+        Set the <strong>scope user id</strong> (or quick-pick) and click <strong>Load</strong>, then add rows and <strong>Save</strong>.
+        Per-user rows <strong>merge</strong> with global: same trade <code className="rounded bg-slate-100 px-1">id</code> is
+        replaced; new ids are added. Leave scope empty to edit <strong>global</strong> defaults for everyone.
       </p>
       {source ? <p className="mt-2 text-xs text-slate-500">Source: {source}</p> : null}
       {msg ? (
@@ -225,6 +227,26 @@ export default function AdminOrdersPage() {
           onLoad={() => void loadConfig()}
           users={users}
         />
+      </div>
+
+      <div
+        className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
+          scopeUserId.trim()
+            ? "border-sky-200 bg-sky-50 text-sky-950"
+            : "border-slate-200 bg-slate-50 text-slate-800"
+        }`}
+      >
+        {scopeUserId.trim() ? (
+          <>
+            <strong>Editing this user only</strong> — paste/save the MongoDB <code className="rounded bg-white/80 px-1">_id</code>{" "}
+            above. The app merges these rows with <strong>global</strong> trades (per-user replaces same{" "}
+            <code className="rounded bg-white/80 px-1">id</code>).
+          </>
+        ) : (
+          <>
+            <strong>Global scope</strong> — these trades show for every account unless a user has their own scoped list.
+          </>
+        )}
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">

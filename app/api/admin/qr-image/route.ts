@@ -1,3 +1,4 @@
+import { apiErrorResponse } from "@/lib/api-error";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
@@ -34,11 +35,7 @@ export async function GET() {
       filename: doc?.value?.filename || null,
     });
   } catch (error) {
-    console.error("Admin QR image get error:", error);
-    return NextResponse.json(
-      { message: "Failed to fetch QR image" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Admin QR image get error:", "Failed to fetch QR image");
   }
 }
 
@@ -89,11 +86,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "QR image uploaded" });
   } catch (error) {
-    console.error("Admin QR image upload error:", error);
-    return NextResponse.json(
-      { message: "Failed to upload QR image" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Admin QR image upload error:", "Failed to upload QR image");
   }
 }
 
@@ -115,10 +108,6 @@ export async function DELETE() {
 
     return NextResponse.json({ message: "QR image deleted" });
   } catch (error) {
-    console.error("Admin QR image delete error:", error);
-    return NextResponse.json(
-      { message: "Failed to delete QR image" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Admin QR image delete error:", "Failed to delete QR image");
   }
 }

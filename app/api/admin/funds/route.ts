@@ -1,3 +1,4 @@
+import { apiErrorResponse } from "@/lib/api-error";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
@@ -60,10 +61,10 @@ export async function GET() {
 
     return NextResponse.json({ requests: result });
   } catch (error) {
-    console.error("Admin funds list error:", error);
-    return NextResponse.json(
-      { message: "Failed to fetch fund requests" },
-      { status: 500 },
+    return apiErrorResponse(
+      error,
+      "Admin funds list error:",
+      "Failed to fetch fund requests",
     );
   }
 }

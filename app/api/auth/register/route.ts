@@ -1,3 +1,4 @@
+import { apiErrorResponse } from "@/lib/api-error";
 import { getDb } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
 
@@ -95,10 +96,10 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
-    console.error("Registration error:", error);
-    return NextResponse.json(
-      { message: "Something went wrong while registering" },
-      { status: 500 },
+    return apiErrorResponse(
+      error,
+      "Registration error:",
+      "Something went wrong while registering",
     );
   }
 }

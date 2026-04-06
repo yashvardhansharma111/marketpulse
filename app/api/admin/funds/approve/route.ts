@@ -1,3 +1,4 @@
+import { apiErrorResponse } from "@/lib/api-error";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
@@ -78,10 +79,6 @@ export async function POST(request: Request) {
           : "Fund approved and balance updated",
     });
   } catch (error) {
-    console.error("Admin approve fund error:", error);
-    return NextResponse.json(
-      { message: "Failed to approve fund" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Admin approve fund error:", "Failed to approve fund");
   }
 }

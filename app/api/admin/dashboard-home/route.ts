@@ -1,3 +1,4 @@
+import { apiErrorResponse } from "@/lib/api-error";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { deleteScopedConfig, readScopedConfig, upsertScopedConfig } from "@/lib/scoped-config";
@@ -50,10 +51,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ config, source, scopeUserId: scopeUserId || null });
   } catch (error) {
-    console.error("Admin dashboard home get error:", error);
-    return NextResponse.json(
-      { message: "Failed to fetch dashboard home" },
-      { status: 500 },
+    return apiErrorResponse(
+      error,
+      "Admin dashboard home get error:",
+      "Failed to fetch dashboard home",
     );
   }
 }
@@ -86,10 +87,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "Dashboard home updated" });
   } catch (error) {
-    console.error("Admin dashboard home save error:", error);
-    return NextResponse.json(
-      { message: "Failed to save dashboard home" },
-      { status: 500 },
+    return apiErrorResponse(
+      error,
+      "Admin dashboard home save error:",
+      "Failed to save dashboard home",
     );
   }
 }
@@ -106,10 +107,10 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ message: "Dashboard home config deleted" });
   } catch (error) {
-    console.error("Admin dashboard home delete error:", error);
-    return NextResponse.json(
-      { message: "Failed to delete dashboard home" },
-      { status: 500 },
+    return apiErrorResponse(
+      error,
+      "Admin dashboard home delete error:",
+      "Failed to delete dashboard home",
     );
   }
 }

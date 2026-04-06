@@ -1,3 +1,4 @@
+import { apiErrorResponse } from "@/lib/api-error";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
@@ -51,11 +52,7 @@ export async function GET() {
       paymentMeta: metaDoc?.value || null,
     });
   } catch (error) {
-    console.error("Admin QR get error:", error);
-    return NextResponse.json(
-      { message: "Failed to fetch QR" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Admin QR get error:", "Failed to fetch QR");
   }
 }
 
@@ -104,10 +101,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "QR updated" });
   } catch (error) {
-    console.error("Admin QR save error:", error);
-    return NextResponse.json(
-      { message: "Failed to save QR" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Admin QR save error:", "Failed to save QR");
   }
 }

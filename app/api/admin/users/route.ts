@@ -1,3 +1,4 @@
+import { apiErrorResponse } from "@/lib/api-error";
 import { getDb } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -40,11 +41,7 @@ export async function GET() {
 
     return NextResponse.json({ users: docs });
   } catch (error) {
-    console.error("Admin users list error:", error);
-    return NextResponse.json(
-      { message: "Failed to fetch users" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Admin users list error:", "Failed to fetch users");
   }
 }
 
@@ -108,11 +105,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "User updated" });
   } catch (error) {
-    console.error("Admin users update error:", error);
-    return NextResponse.json(
-      { message: "Failed to update user" },
-      { status: 500 },
-    );
+    return apiErrorResponse(error, "Admin users update error:", "Failed to update user");
   }
 }
 
