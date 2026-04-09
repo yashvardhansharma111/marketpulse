@@ -2,6 +2,24 @@ import { apiErrorResponse } from "@/lib/api-error";
 import { getDb } from "@/lib/mongodb";
 import { NextResponse } from "next/server";
 
+/** Accept only HTTPS URLs from UploadThing / UFS CDNs (not arbitrary user-supplied hosts). */
+function isUploadThingHttpsUrl(url: string): boolean {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") return false;
+    const h = u.hostname.toLowerCase();
+    return (
+      h === "utfs.io" ||
+      h === "ufs.sh" ||
+      h.endsWith(".uploadthing.com") ||
+      h.endsWith(".uploadthing.pro")
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
@@ -17,6 +35,7 @@ export async function POST(request: Request) {
     const photo = formData.get("photo");
     const bankProof = formData.get("bankProof");
     const document = formData.get("document");
+    const signatureUrlRaw = formData.get("signatureUrl")?.toString().trim() ?? "";
 
     if (!fullName || !email || !phone) {
       return NextResponse.json(
@@ -70,9 +89,20 @@ export async function POST(request: Request) {
     documents.bankProof = await fileToDoc(bankProof);
     documents.document = await fileToDoc(document);
 
-    if (!documents.signature) {
+    const signatureUploadThingUrl = isUploadThingHttpsUrl(signatureUrlRaw)
+      ? signatureUrlRaw
+      : null;
+
+    if (!documents.signature && !signatureUploadThingUrl) {
       return NextResponse.json(
         { message: "Signature image is required" },
+        { status: 400 },
+      );
+    }
+
+    if (signatureUrlRaw && !signatureUploadThingUrl) {
+      return NextResponse.json(
+        { message: "Invalid signature URL" },
         { status: 400 },
       );
     }
@@ -93,7 +123,13 @@ export async function POST(request: Request) {
       passwordHash: null,
       tradingBalance: 0,
       margin: 0,
-      documents,
+      documents: {
+        photo: documents.photo,
+        signature: documents.signature,
+        bankProof: documents.bankProof,
+        document: documents.document,
+        signatureUploadThingUrl,
+      },
     });
 
     return NextResponse.json(
