@@ -1,10 +1,11 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-/** Default dev origins (Expo web, etc.). Trailing slashes are normalized away. */
+/** Explicit allowlist (production + dev). Trailing slashes normalized. */
 const DEFAULT_ALLOWED = [
   "http://localhost:8081",
   "http://127.0.0.1:8081",
+  "http://[::1]:8081",
 ];
 
 function normalizeOrigin(o: string): string {
@@ -28,11 +29,40 @@ function loadAllowedOrigins(): Set<string> {
 
 const ALLOWED_ORIGINS = loadAllowedOrigins();
 
+/** Browser may omit Origin on some edge paths; Referer still shows the page origin. */
+function getRequestOrigin(request: NextRequest): string | null {
+  const o = request.headers.get("origin");
+  if (o) return o;
+  const referer = request.headers.get("referer");
+  if (!referer) return null;
+  try {
+    const u = new URL(referer);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return null;
+  }
+}
+
+function isLocalDevOrigin(origin: string): boolean {
+  if (process.env.NODE_ENV === "production") return false;
+  try {
+    const u = new URL(origin);
+    const h = u.hostname.toLowerCase();
+    return (
+      h === "localhost" ||
+      h === "127.0.0.1" ||
+      h === "[::1]" ||
+      h === "::1"
+    );
+  } catch {
+    return false;
+  }
+}
+
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
   const n = normalizeOrigin(origin);
   if (ALLOWED_ORIGINS.has(n)) return true;
-  // Optional: any localhost / loopback port (set in .env.local for dev)
   if (process.env.CORS_ALLOW_LOCALHOST === "true") {
     try {
       const u = new URL(n);
@@ -41,37 +71,58 @@ function isAllowedOrigin(origin: string | null): boolean {
       return false;
     }
   }
+  if (isLocalDevOrigin(n)) return true;
   return false;
 }
 
-function corsHeaders(origin: string | null): HeadersInit {
+const STATIC_ALLOW_HEADERS =
+  "Authorization, Content-Type, X-Requested-With, Accept, ngrok-skip-browser-warning";
+
+function mergeAllowHeaders(request: NextRequest): string {
+  const requested = request.headers.get("access-control-request-headers");
+  if (!requested) return STATIC_ALLOW_HEADERS;
+  const set = new Set<string>();
+  for (const part of STATIC_ALLOW_HEADERS.split(",")) {
+    const t = part.trim();
+    if (t) set.add(t);
+  }
+  for (const part of requested.split(",")) {
+    const t = part.trim();
+    if (t) set.add(t);
+  }
+  return [...set].join(", ");
+}
+
+function buildCorsHeaders(request: NextRequest, origin: string | null): Headers {
+  const h = new Headers();
   if (!isAllowedOrigin(origin)) {
-    return {};
+    return h;
   }
   const allowOrigin = normalizeOrigin(origin!);
-  return {
-    "Access-Control-Allow-Origin": allowOrigin,
-    "Access-Control-Allow-Credentials": "true",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers":
-      "Authorization, Content-Type, X-Requested-With, Accept, ngrok-skip-browser-warning",
-    Vary: "Origin",
-    "Access-Control-Max-Age": "86400",
-  };
+  h.set("Access-Control-Allow-Origin", allowOrigin);
+  h.set("Access-Control-Allow-Credentials", "true");
+  h.set(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD",
+  );
+  h.set("Access-Control-Allow-Headers", mergeAllowHeaders(request));
+  h.set("Vary", "Origin");
+  h.set("Access-Control-Max-Age", "86400");
+  return h;
 }
 
 export function middleware(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  const extra = corsHeaders(origin);
+  const origin = getRequestOrigin(request);
+  const headers = buildCorsHeaders(request, origin);
 
   if (request.method === "OPTIONS") {
-    return new NextResponse(null, { status: 204, headers: extra });
+    return new NextResponse(null, { status: 204, headers });
   }
 
   const res = NextResponse.next();
-  for (const [key, value] of Object.entries(extra)) {
-    res.headers.set(key, value as string);
-  }
+  headers.forEach((value, key) => {
+    res.headers.set(key, value);
+  });
   return res;
 }
 

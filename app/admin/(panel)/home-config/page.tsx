@@ -103,7 +103,7 @@ export default function AdminHomeConfigPage() {
   function addIndex() {
     setIndices((prev) => [
       ...prev,
-      { name: "NIFTY 50", value: 22000, change: 0, changePct: 0, tvSymbol: "NSE:NIFTY" },
+      { name: "BANK NIFTY", value: 48000, change: 0, changePct: 0, tvSymbol: "NSE:BANKNIFTY" },
     ]);
   }
   function addStock() {

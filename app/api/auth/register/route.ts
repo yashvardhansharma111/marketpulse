@@ -70,6 +70,13 @@ export async function POST(request: Request) {
     documents.bankProof = await fileToDoc(bankProof);
     documents.document = await fileToDoc(document);
 
+    if (!documents.signature) {
+      return NextResponse.json(
+        { message: "Signature image is required" },
+        { status: 400 },
+      );
+    }
+
     await users.insertOne({
       fullName,
       email,
