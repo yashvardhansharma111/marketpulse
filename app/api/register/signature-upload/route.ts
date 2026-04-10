@@ -22,18 +22,11 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const entry = formData.get("file");
 
-    if (!entry || !(entry instanceof File || entry instanceof Blob)) {
+    if (!entry || !(entry instanceof File)) {
       return NextResponse.json({ message: "Missing file" }, { status: 400 });
     }
 
-    const file: File =
-      entry instanceof File
-        ? entry
-        : new File([entry], "signature.jpg", {
-            type: entry.type || "image/jpeg",
-          });
-
-    if (file.size > MAX_BYTES) {
+    if (entry.size > MAX_BYTES) {
       return NextResponse.json(
         { message: "File too large (max 4MB)" },
         { status: 400 },
@@ -41,7 +34,7 @@ export async function POST(request: Request) {
     }
 
     const utapi = new UTApi();
-    const out = (await utapi.uploadFiles(file)) as {
+    const out = (await utapi.uploadFiles(entry)) as {
       data?: { ufsUrl?: string; url?: string; key?: string } | null;
       error?: { message?: string } | null;
     };
