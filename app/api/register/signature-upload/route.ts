@@ -22,11 +22,19 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const entry = formData.get("file");
 
-    if (!entry || !(entry instanceof File)) {
+    if (!entry || typeof (entry as Blob).size !== "number") {
       return NextResponse.json({ message: "Missing file" }, { status: 400 });
     }
 
-    if (entry.size > MAX_BYTES) {
+    // React Native multipart sometimes yields Blob-like parts that are not `instanceof File`.
+    const file: File =
+      entry instanceof File
+        ? entry
+        : new File([entry as Blob], "signature.jpg", {
+            type: (entry as Blob).type || "image/jpeg",
+          });
+
+    if (file.size > MAX_BYTES) {
       return NextResponse.json(
         { message: "File too large (max 4MB)" },
         { status: 400 },
@@ -34,7 +42,7 @@ export async function POST(request: Request) {
     }
 
     const utapi = new UTApi();
-    const out = (await utapi.uploadFiles(entry)) as {
+    const out = (await utapi.uploadFiles(file)) as {
       data?: { ufsUrl?: string; url?: string; key?: string } | null;
       error?: { message?: string } | null;
     };

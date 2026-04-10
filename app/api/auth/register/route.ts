@@ -11,7 +11,9 @@ function isUploadThingHttpsUrl(url: string): boolean {
     const h = u.hostname.toLowerCase();
     return (
       h === "utfs.io" ||
+      h.endsWith(".utfs.io") ||
       h === "ufs.sh" ||
+      h.endsWith(".ufs.sh") ||
       h.endsWith(".uploadthing.com") ||
       h.endsWith(".uploadthing.pro")
     );
