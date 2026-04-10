@@ -22,16 +22,15 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const entry = formData.get("file");
 
-    if (!entry || typeof (entry as Blob).size !== "number") {
+    if (!entry || !(entry instanceof File || entry instanceof Blob)) {
       return NextResponse.json({ message: "Missing file" }, { status: 400 });
     }
 
-    // React Native multipart sometimes yields Blob-like parts that are not `instanceof File`.
     const file: File =
       entry instanceof File
         ? entry
-        : new File([entry as Blob], "signature.jpg", {
-            type: (entry as Blob).type || "image/jpeg",
+        : new File([entry], "signature.jpg", {
+            type: entry.type || "image/jpeg",
           });
 
     if (file.size > MAX_BYTES) {
