@@ -12,6 +12,7 @@ type User = {
   status?: string;
   tradingBalance?: number;
   margin?: number;
+  adminPlainPassword?: string;
 };
 
 export default function AdminUsersPage() {
@@ -23,6 +24,7 @@ export default function AdminUsersPage() {
   const [clientIdDrafts, setClientIdDrafts] = useState<Record<string, string>>({});
   const [balanceDrafts, setBalanceDrafts] = useState<Record<string, string>>({});
   const [marginDrafts, setMarginDrafts] = useState<Record<string, string>>({});
+  const [activating, setActivating] = useState<Record<string, boolean>>({});
   const [newName, setNewName] = useState("");
   const [newClientId, setNewClientId] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -70,54 +72,42 @@ export default function AdminUsersPage() {
     }
   }
 
-  async function setPassword(userId: string) {
+  async function activateUser(userId: string) {
     setMsg(null);
     setErr(null);
     const password = (passwordDrafts[userId] || "").trim();
     const clientId = (clientIdDrafts[userId] || "").trim();
+    if (!clientId && !password) {
+      setErr("Enter at least a Client ID or password");
+      return;
+    }
     if (!password) {
       setErr("Enter a password");
       return;
     }
+    setActivating((p) => ({ ...p, [userId]: true }));
     try {
-      const data = await adminJson<{ email?: string; clientId?: string; emailSent?: boolean; emailWarning?: string | null }>(
-        "/api/admin/generate-password",
-        {
-          method: "POST",
-          body: JSON.stringify({ userId, password, clientId: clientId || undefined }),
-        },
-      );
+      const data = await adminJson<{
+        email?: string;
+        clientId?: string;
+        emailSent?: boolean;
+        emailWarning?: string | null;
+      }>("/api/admin/generate-password", {
+        method: "POST",
+        body: JSON.stringify({ userId, password, clientId: clientId || undefined }),
+      });
       setMsg(
         data.emailSent
-          ? `Credentials were emailed to ${data.email || userId}. Client ID: ${data.clientId || "-"}`
-          : `${data.emailWarning || "Password saved, but email could not be sent."} Client ID: ${data.clientId || "-"}`,
+          ? `Credentials emailed to ${data.email || "user"}. Client ID: ${data.clientId || "—"}`
+          : `${data.emailWarning || "Saved, but email could not be sent."} Client ID: ${data.clientId || "—"}`,
       );
       setPasswordDrafts((p) => ({ ...p, [userId]: "" }));
       setClientIdDrafts((p) => ({ ...p, [userId]: "" }));
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed");
-    }
-  }
-
-  async function setClientId(userId: string) {
-    setMsg(null);
-    setErr(null);
-    const raw = (clientIdDrafts[userId] || "").trim();
-    if (!raw) {
-      setErr("Enter Client ID");
-      return;
-    }
-    try {
-      await adminJson("/api/admin/users", {
-        method: "POST",
-        body: JSON.stringify({ userId, clientId: raw }),
-      });
-      setMsg("Client ID updated.");
-      setClientIdDrafts((p) => ({ ...p, [userId]: "" }));
-      await load();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setActivating((p) => ({ ...p, [userId]: false }));
     }
   }
 
@@ -173,7 +163,7 @@ export default function AdminUsersPage() {
     <div className="mx-auto max-w-7xl">
       <h2 className="text-lg font-semibold text-slate-900">Users &amp; clients</h2>
       <p className="mt-1 text-sm text-slate-600">
-        All registered users. Use the table to assign Client ID, password, and balances.
+        Assign Client ID &amp; password in one step — credentials are emailed automatically.
       </p>
 
       {msg ? (
@@ -221,17 +211,17 @@ export default function AdminUsersPage() {
           <h3 className="font-medium text-slate-900">All users</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-[1100px] w-full border-collapse text-left text-sm">
+          <table className="min-w-[1200px] w-full border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                 <th className="px-3 py-3">Name</th>
                 <th className="px-3 py-3">Client ID</th>
                 <th className="px-3 py-3">Email</th>
+                <th className="px-3 py-3">Password</th>
                 <th className="px-3 py-3">Status</th>
                 <th className="px-3 py-3 text-right">Balance</th>
                 <th className="px-3 py-3 text-right">Margin</th>
-                <th className="px-3 py-3">Set Client ID</th>
-                <th className="px-3 py-3">New password</th>
+                <th className="px-3 py-3">Set credentials</th>
                 <th className="px-3 py-3">Actions</th>
               </tr>
             </thead>
@@ -243,116 +233,112 @@ export default function AdminUsersPage() {
                   </td>
                 </tr>
               ) : (
-                users.map((u) => (
-                  <tr key={u._id} className="border-b border-slate-50 hover:bg-slate-50/80">
-                    <td className="px-3 py-3 font-medium text-slate-900">{u.fullName || "—"}</td>
-                    <td className="px-3 py-3 text-slate-700">{u.clientId || "—"}</td>
-                    <td className="px-3 py-3 text-slate-600">{u.email || "—"}</td>
-                    <td className="px-3 py-3">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          u.status === "active"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : u.status === "blocked"
-                              ? "bg-rose-100 text-rose-800"
-                              : "bg-amber-100 text-amber-800"
-                        }`}
-                      >
-                        {u.status || "—"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-right tabular-nums text-slate-800">
-                      {u.tradingBalance ?? 0}
-                    </td>
-                    <td className="px-3 py-3 text-right tabular-nums text-slate-800">
-                      {u.margin ?? 0}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex gap-1">
-                        <input
-                          className="w-24 rounded border border-slate-200 px-2 py-1 text-xs"
-                          placeholder="ID"
-                          value={clientIdDrafts[u._id] ?? ""}
-                          onChange={(e) =>
-                            setClientIdDrafts((p) => ({ ...p, [u._id]: e.target.value }))
-                          }
-                        />
-                        <button
-                          type="button"
-                          className="rounded bg-slate-200 px-2 py-1 text-xs font-medium hover:bg-slate-300"
-                          onClick={() => void setClientId(u._id)}
+                users.map((u) => {
+                  const busy = !!activating[u._id];
+                  return (
+                    <tr key={u._id} className="border-b border-slate-50 hover:bg-slate-50/80">
+                      <td className="px-3 py-3 font-medium text-slate-900">{u.fullName || "—"}</td>
+                      <td className="px-3 py-3 text-slate-700">{u.clientId || "—"}</td>
+                      <td className="px-3 py-3 text-slate-600">{u.email || "—"}</td>
+                      <td className="px-3 py-3 font-mono text-xs text-slate-600">
+                        {u.adminPlainPassword || "—"}
+                      </td>
+                      <td className="px-3 py-3">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            u.status === "active"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : u.status === "blocked"
+                                ? "bg-rose-100 text-rose-800"
+                                : "bg-amber-100 text-amber-800"
+                          }`}
                         >
-                          Save
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex gap-1">
-                        <input
-                          type="password"
-                          className="w-24 rounded border border-slate-200 px-2 py-1 text-xs"
-                          placeholder="Pass"
-                          value={passwordDrafts[u._id] ?? ""}
-                          onChange={(e) =>
-                            setPasswordDrafts((p) => ({ ...p, [u._id]: e.target.value }))
-                          }
-                        />
-                        <button
-                          type="button"
-                          className="rounded bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700"
-                          onClick={() => void setPassword(u._id)}
-                        >
-                          Set
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex gap-1">
+                          {u.status || "—"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-right tabular-nums text-slate-800">
+                        {u.tradingBalance ?? 0}
+                      </td>
+                      <td className="px-3 py-3 text-right tabular-nums text-slate-800">
+                        {u.margin ?? 0}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1">
                           <input
-                            className="w-16 rounded border border-slate-200 px-1 py-0.5 text-xs"
-                            placeholder="Bal"
-                            value={balanceDrafts[u._id] ?? ""}
+                            className="w-20 rounded border border-slate-200 px-2 py-1 text-xs"
+                            placeholder="Client ID"
+                            value={clientIdDrafts[u._id] ?? ""}
                             onChange={(e) =>
-                              setBalanceDrafts((p) => ({ ...p, [u._id]: e.target.value }))
+                              setClientIdDrafts((p) => ({ ...p, [u._id]: e.target.value }))
                             }
                           />
                           <input
-                            className="w-16 rounded border border-slate-200 px-1 py-0.5 text-xs"
-                            placeholder="Marg"
-                            value={marginDrafts[u._id] ?? ""}
+                            type="password"
+                            className="w-20 rounded border border-slate-200 px-2 py-1 text-xs"
+                            placeholder="Password"
+                            value={passwordDrafts[u._id] ?? ""}
                             onChange={(e) =>
-                              setMarginDrafts((p) => ({ ...p, [u._id]: e.target.value }))
+                              setPasswordDrafts((p) => ({ ...p, [u._id]: e.target.value }))
                             }
                           />
                           <button
                             type="button"
-                            className="rounded bg-slate-800 px-2 py-0.5 text-xs text-white"
-                            onClick={() => void setBalanceMargin(u._id)}
+                            disabled={busy}
+                            className="whitespace-nowrap rounded bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                            onClick={() => void activateUser(u._id)}
                           >
-                            Apply
+                            {busy ? "…" : "Activate & Email"}
                           </button>
                         </div>
-                        <div className="flex gap-1">
-                          <button
-                            type="button"
-                            className="rounded bg-rose-100 px-2 py-0.5 text-xs text-rose-800"
-                            onClick={() => void blockToggle(u._id, true)}
-                          >
-                            Block
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800"
-                            onClick={() => void blockToggle(u._id, false)}
-                          >
-                            Unblock
-                          </button>
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex gap-1">
+                            <input
+                              className="w-16 rounded border border-slate-200 px-1 py-0.5 text-xs"
+                              placeholder="Bal"
+                              value={balanceDrafts[u._id] ?? ""}
+                              onChange={(e) =>
+                                setBalanceDrafts((p) => ({ ...p, [u._id]: e.target.value }))
+                              }
+                            />
+                            <input
+                              className="w-16 rounded border border-slate-200 px-1 py-0.5 text-xs"
+                              placeholder="Marg"
+                              value={marginDrafts[u._id] ?? ""}
+                              onChange={(e) =>
+                                setMarginDrafts((p) => ({ ...p, [u._id]: e.target.value }))
+                              }
+                            />
+                            <button
+                              type="button"
+                              className="rounded bg-slate-800 px-2 py-0.5 text-xs text-white"
+                              onClick={() => void setBalanceMargin(u._id)}
+                            >
+                              Apply
+                            </button>
+                          </div>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              className="rounded bg-rose-100 px-2 py-0.5 text-xs text-rose-800"
+                              onClick={() => void blockToggle(u._id, true)}
+                            >
+                              Block
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800"
+                              onClick={() => void blockToggle(u._id, false)}
+                            >
+                              Unblock
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
