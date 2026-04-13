@@ -169,8 +169,27 @@ export default function AdminUserDetailsPage() {
         </span>
       </div>
 
+      {/* Quick-jump nav */}
+      <div className="mt-5 flex flex-wrap gap-2">
+        {[
+          { href: "#info", label: "Personal info" },
+          { href: "#bank", label: "Bank details" },
+          { href: "#account", label: "Account" },
+          { href: "#documents", label: "Documents" },
+          { href: "#positions", label: "Positions & Orders" },
+        ].map((t) => (
+          <a
+            key={t.href}
+            href={t.href}
+            className="rounded-full border border-slate-200 px-3.5 py-1.5 text-xs font-medium text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800"
+          >
+            {t.label}
+          </a>
+        ))}
+      </div>
+
       {/* Personal info */}
-      <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section id="info" className="mt-8 scroll-mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="mb-3 font-medium text-slate-900">Personal information</h3>
         <InfoRow label="Full name" value={user.fullName} />
         <InfoRow label="Email" value={user.email} />
@@ -180,7 +199,7 @@ export default function AdminUserDetailsPage() {
       </section>
 
       {/* Bank details */}
-      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section id="bank" className="mt-6 scroll-mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="mb-3 font-medium text-slate-900">Bank details</h3>
         <InfoRow label="Account number" value={user.bankDetails?.accountNo} />
         <InfoRow label="IFSC code" value={user.bankDetails?.ifscCode} />
@@ -188,7 +207,7 @@ export default function AdminUserDetailsPage() {
       </section>
 
       {/* Financials */}
-      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section id="account" className="mt-6 scroll-mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="mb-3 font-medium text-slate-900">Account</h3>
         <InfoRow label="Trading balance" value={user.tradingBalance} />
         <InfoRow label="Margin" value={user.margin} />
@@ -203,7 +222,7 @@ export default function AdminUserDetailsPage() {
       </section>
 
       {/* Documents */}
-      <section className="mt-6">
+      <section id="documents" className="mt-6 scroll-mt-8">
         <h3 className="mb-4 font-medium text-slate-900">Uploaded documents</h3>
         <div className="grid gap-4 sm:grid-cols-2">
           <DocPreview label="Profile photo" dataUri={docs.photo} />
@@ -218,7 +237,7 @@ export default function AdminUserDetailsPage() {
       </section>
 
       {/* Quick link to orders scoped to this user */}
-      <section className="mt-8 mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section id="positions" className="mt-8 mb-8 scroll-mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
         <h3 className="mb-2 font-medium text-slate-900">Positions &amp; Orders</h3>
         <p className="text-sm text-slate-600">
           Manage this user&apos;s positions, P&amp;L, and order history from the Orders page scoped to their ID.
