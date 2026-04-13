@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { adminJson } from "@/components/admin/adminFetch";
 
 type User = {
@@ -237,7 +238,14 @@ export default function AdminUsersPage() {
                   const busy = !!activating[u._id];
                   return (
                     <tr key={u._id} className="border-b border-slate-50 hover:bg-slate-50/80">
-                      <td className="px-3 py-3 font-medium text-slate-900">{u.fullName || "—"}</td>
+                      <td className="px-3 py-3 font-medium text-slate-900">
+                        <Link
+                          href={`/admin/user-details?id=${u._id}`}
+                          className="text-emerald-600 hover:underline"
+                        >
+                          {u.fullName || "—"}
+                        </Link>
+                      </td>
                       <td className="px-3 py-3 text-slate-700">{u.clientId || "—"}</td>
                       <td className="px-3 py-3 text-slate-600">{u.email || "—"}</td>
                       <td className="px-3 py-3 font-mono text-xs text-slate-600">
