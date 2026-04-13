@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { adminJson } from "@/components/admin/adminFetch";
 import { ScopeUserBar } from "@/components/admin/ScopeUserBar";
 import { computeOrderPnl } from "@/lib/admin-orders-pnl";
@@ -83,8 +84,10 @@ const inp =
 const inpNum = `${inp} text-right`;
 
 export default function AdminOrdersPage() {
+  const searchParams = useSearchParams();
+  const initialScope = searchParams.get("scopeUserId") || "";
   const [users, setUsers] = useState<UserOpt[]>([]);
-  const [scopeUserId, setScopeUserId] = useState("");
+  const [scopeUserId, setScopeUserId] = useState(initialScope);
   const [segments, setSegments] = useState<OrderSegment[]>(DEFAULT_SEGMENTS);
   const [rows, setRows] = useState<OrderRow[]>([]);
   const [source, setSource] = useState("");
