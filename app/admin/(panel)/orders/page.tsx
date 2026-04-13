@@ -41,9 +41,11 @@ const DEFAULT_SEGMENTS: OrderSegment[] = [
   { key: "gtt", label: "GTT" },
 ];
 
+let _rowCounter = 0;
 function emptyRow(): OrderRow {
+  _rowCounter += 1;
   const base = {
-    id: String(Date.now()),
+    id: `${Date.now()}-${_rowCounter}-${Math.random().toString(36).slice(2, 7)}`,
     symbol: "",
     market: "NSE",
     productType: "Delivery",
