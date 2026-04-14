@@ -19,6 +19,7 @@ type OrderRow = {
   strikePrice?: number;
   exchange?: string;
   orderTag?: string;
+  expiryDate?: string;
   changePct?: number;
   orderPrice?: number;
   qty: number;
@@ -53,6 +54,7 @@ function emptyRow(): OrderRow {
     strikePrice: 0,
     exchange: "NSEFO",
     orderTag: "At Market",
+    expiryDate: "",
     changePct: 0,
     orderPrice: 0,
     avgPrice: 0,
@@ -370,6 +372,7 @@ export default function AdminOrdersPage() {
                 <th className="whitespace-nowrap px-1.5 py-2 font-medium">Symbol</th>
                 <th className="whitespace-nowrap px-1.5 py-2 font-medium">Side</th>
                 <th className="whitespace-nowrap px-1.5 py-2 font-medium">Product</th>
+                <th className="whitespace-nowrap px-1.5 py-2 font-medium">Expiry</th>
                 <th className="whitespace-nowrap px-1.5 py-2 font-medium">Opt</th>
                 <th className="whitespace-nowrap px-1.5 py-2 font-medium">Strike</th>
                 <th className="whitespace-nowrap px-1.5 py-2 font-medium">Exch</th>
@@ -392,7 +395,7 @@ export default function AdminOrdersPage() {
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={22} className="px-3 py-6 text-center text-slate-500">
+                  <td colSpan={23} className="px-3 py-6 text-center text-slate-500">
                     No rows. Click &quot;Add order&quot; to create one.
                   </td>
                 </tr>
@@ -439,10 +442,24 @@ export default function AdminOrdersPage() {
                       </select>
                     </td>
                     <td className="px-1.5 py-1 align-top">
-                      <input
+                      <select
                         className={inp}
-                        value={row.productType || ""}
+                        value={row.productType || "Delivery"}
                         onChange={(e) => updateRow(idx, { productType: e.target.value })}
+                      >
+                        <option value="Delivery">Delivery</option>
+                        <option value="Intraday">Intraday</option>
+                        <option value="F&O">F&amp;O</option>
+                        <option value="CNC">CNC</option>
+                        <option value="MIS">MIS</option>
+                      </select>
+                    </td>
+                    <td className="px-1.5 py-1 align-top">
+                      <input
+                        type="date"
+                        className={inp}
+                        value={row.expiryDate || ""}
+                        onChange={(e) => updateRow(idx, { expiryDate: e.target.value })}
                       />
                     </td>
                     <td className="px-1.5 py-1 align-top">
