@@ -47,6 +47,8 @@ type OrdersConfig = {
   };
   segments: OrderSegment[];
   orders: OrderRow[];
+  showOptionType?: boolean;
+  showSide?: boolean;
 };
 
 async function requireAdmin() {
