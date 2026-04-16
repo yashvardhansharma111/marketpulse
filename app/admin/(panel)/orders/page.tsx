@@ -98,6 +98,8 @@ export default function AdminOrdersPage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [showOptionType, setShowOptionType] = useState(true);
+  const [showSide, setShowSide] = useState(true);
 
   const totalPnl = useMemo(
     () => rows.reduce((a, o) => a + computeOrderPnl(o), 0),
@@ -121,10 +123,14 @@ export default function AdminOrdersPage() {
         config?: {
           segments?: OrderSegment[];
           orders?: OrderRow[];
+          showOptionType?: boolean;
+          showSide?: boolean;
         };
         source?: string;
       }>(`/api/admin/orders${q}`);
       const cfg = data.config || {};
+      setShowOptionType(cfg.showOptionType !== false);
+      setShowSide(cfg.showSide !== false);
       const segs = cfg.segments;
       setSegments(
         Array.isArray(segs) && segs.length > 0 ? segs : DEFAULT_SEGMENTS,
@@ -178,6 +184,8 @@ export default function AdminOrdersPage() {
             summary,
             segments,
             orders: rows,
+            showOptionType,
+            showSide,
           },
         }),
       });
@@ -349,6 +357,30 @@ export default function AdminOrdersPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h3 className="mb-3 text-sm font-semibold text-slate-900">Visibility in App</h3>
+        <div className="flex flex-wrap gap-6">
+          <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showOptionType}
+              onChange={(e) => setShowOptionType(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
+            />
+            Show CE / PE (Option Type)
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showSide}
+              onChange={(e) => setShowSide(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 accent-emerald-600"
+            />
+            Show BUY / SELL (Side)
+          </label>
         </div>
       </section>
 
