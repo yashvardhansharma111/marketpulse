@@ -3,6 +3,7 @@ import { getDb } from "@/lib/mongodb";
 
 /** Same shape as admin / config orders */
 export type OrderRowEffective = {
+  expiryDate: string;
   id: string;
   segmentKey: string;
   market?: string;
@@ -36,6 +37,8 @@ export type OrdersConfigEffective = {
   summary?: { dayPnl: number; totalPnl: number };
   segments: Array<{ key: string; label: string }>;
   orders: OrderRowEffective[];
+  showOptionType?: boolean;
+  showSide?: boolean;
 };
 
 const KEY = "dashboard_orders";
@@ -75,6 +78,8 @@ export async function getEffectiveOrdersConfigForUser(
       summary: c.summary ?? { dayPnl: 0, totalPnl: 0 },
       segments: Array.isArray(c.segments) ? c.segments : [],
       orders: Array.isArray(c.orders) ? c.orders : [],
+      showOptionType: c.showOptionType,
+      showSide: c.showSide,
     };
   }
 
@@ -109,5 +114,7 @@ export async function getEffectiveOrdersConfigForUser(
     segments:
       u.segments.length > 0 ? u.segments : global.segments.length > 0 ? global.segments : [],
     orders: Array.from(byId.values()),
+    showOptionType: u.showOptionType ?? global.showOptionType,
+    showSide: u.showSide ?? global.showSide,
   };
 }
