@@ -26,6 +26,7 @@ export default function AdminUsersPage() {
   const [balanceDrafts, setBalanceDrafts] = useState<Record<string, string>>({});
   const [marginDrafts, setMarginDrafts] = useState<Record<string, string>>({});
   const [activating, setActivating] = useState<Record<string, boolean>>({});
+  const [resending, setResending] = useState<Record<string, boolean>>({});
   const [newName, setNewName] = useState("");
   const [newClientId, setNewClientId] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -142,6 +143,23 @@ export default function AdminUsersPage() {
       await load();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed");
+    }
+  }
+
+  async function resendCredentials(userId: string) {
+    setMsg(null);
+    setErr(null);
+    setResending((p) => ({ ...p, [userId]: true }));
+    try {
+      const data = await adminJson<{ email?: string }>("/api/admin/resend-credentials", {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      });
+      setMsg(`Credentials resent to ${data.email || "user"}`);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to resend");
+    } finally {
+      setResending((p) => ({ ...p, [userId]: false }));
     }
   }
 
@@ -340,6 +358,14 @@ export default function AdminUsersPage() {
                               onClick={() => void blockToggle(u._id, false)}
                             >
                               Unblock
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!!resending[u._id] || !u.clientId || !u.adminPlainPassword}
+                              className="rounded bg-sky-100 px-2 py-0.5 text-xs text-sky-800 disabled:opacity-50"
+                              onClick={() => void resendCredentials(u._id)}
+                            >
+                              {resending[u._id] ? "Sending…" : "Resend Mail"}
                             </button>
                           </div>
                         </div>
