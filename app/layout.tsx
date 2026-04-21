@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Market Pulse Admin",
-  description: "Market Pulse admin panel",
+  title: "Zero-Dha Admin",
+  description: "Zero-Dha admin panel",
 };
 
 export default function RootLayout({

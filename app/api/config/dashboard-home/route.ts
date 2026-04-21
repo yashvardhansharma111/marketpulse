@@ -10,7 +10,6 @@ type MarketQuote = {
   change: number;
   changePct: number;
   tvSymbol: string;
-  delayed?: boolean;
   currency?: string;
   marketTime?: number | null;
 };
@@ -37,7 +36,6 @@ type HomeConfig = {
     change: number;
     changePct: number;
     tvSymbol?: string;
-    delayed?: boolean;
   }>;
   commodities: MarketQuote[];
   mutualFunds: MutualFundQuote[];
@@ -104,7 +102,7 @@ const fallbackConfig: HomeConfig = {
       change: 146.2,
       changePct: 0.66,
       tvSymbol: "NSE:NIFTY",
-      delayed: true,
+
     },
     {
       name: "BANK NIFTY",
@@ -113,7 +111,7 @@ const fallbackConfig: HomeConfig = {
       change: 210.4,
       changePct: 0.44,
       tvSymbol: "NSE:BANKNIFTY",
-      delayed: true,
+
     },
     {
       name: "SENSEX",
@@ -122,7 +120,7 @@ const fallbackConfig: HomeConfig = {
       change: 412.5,
       changePct: 0.56,
       tvSymbol: "BSE:SENSEX",
-      delayed: true,
+
     },
   ],
   stocks: [
@@ -133,7 +131,7 @@ const fallbackConfig: HomeConfig = {
       change: 25,
       changePct: 0.88,
       tvSymbol: "NSE:RELIANCE",
-      delayed: true,
+
     },
     {
       symbol: "HDFCBANK.NS",
@@ -142,7 +140,7 @@ const fallbackConfig: HomeConfig = {
       change: 6,
       changePct: 0.39,
       tvSymbol: "NSE:HDFCBANK",
-      delayed: true,
+
     },
     {
       symbol: "ICICIBANK.NS",
@@ -151,7 +149,7 @@ const fallbackConfig: HomeConfig = {
       change: 8,
       changePct: 0.72,
       tvSymbol: "NSE:ICICIBANK",
-      delayed: true,
+
     },
     {
       symbol: "TCS.NS",
@@ -160,7 +158,7 @@ const fallbackConfig: HomeConfig = {
       change: -18,
       changePct: -0.46,
       tvSymbol: "NSE:TCS",
-      delayed: true,
+
     },
     {
       symbol: "INFY.NS",
@@ -169,7 +167,7 @@ const fallbackConfig: HomeConfig = {
       change: 14,
       changePct: 0.88,
       tvSymbol: "NSE:INFY",
-      delayed: true,
+
     },
     {
       symbol: "BHARTIARTL.NS",
@@ -178,7 +176,7 @@ const fallbackConfig: HomeConfig = {
       change: -12,
       changePct: -0.75,
       tvSymbol: "NSE:BHARTIARTL",
-      delayed: true,
+
     },
     {
       symbol: "ITC.NS",
@@ -187,7 +185,7 @@ const fallbackConfig: HomeConfig = {
       change: 3,
       changePct: 0.73,
       tvSymbol: "NSE:ITC",
-      delayed: true,
+
     },
     {
       symbol: "LICI.NS",
@@ -196,7 +194,7 @@ const fallbackConfig: HomeConfig = {
       change: -5,
       changePct: -0.54,
       tvSymbol: "NSE:LICI",
-      delayed: true,
+
     },
   ],
   commodities: [
@@ -207,7 +205,7 @@ const fallbackConfig: HomeConfig = {
       change: 11.3,
       changePct: 0.52,
       tvSymbol: "TVC:GOLD",
-      delayed: true,
+
       currency: "USD",
     },
     {
@@ -217,7 +215,7 @@ const fallbackConfig: HomeConfig = {
       change: -0.14,
       changePct: -0.57,
       tvSymbol: "TVC:SILVER",
-      delayed: true,
+
       currency: "USD",
     },
     {
@@ -227,7 +225,7 @@ const fallbackConfig: HomeConfig = {
       change: 0.92,
       changePct: 1.15,
       tvSymbol: "TVC:USOIL",
-      delayed: true,
+
       currency: "USD",
     },
     {
@@ -237,7 +235,7 @@ const fallbackConfig: HomeConfig = {
       change: 0.55,
       changePct: 0.66,
       tvSymbol: "TVC:UKOIL",
-      delayed: true,
+
       currency: "USD",
     },
     {
@@ -247,7 +245,7 @@ const fallbackConfig: HomeConfig = {
       change: -0.06,
       changePct: -2.73,
       tvSymbol: "NYMEX:NG1!",
-      delayed: true,
+
       currency: "USD",
     },
     {
@@ -257,7 +255,7 @@ const fallbackConfig: HomeConfig = {
       change: 0.03,
       changePct: 0.73,
       tvSymbol: "COMEX:HG1!",
-      delayed: true,
+
       currency: "USD",
     },
     {
@@ -267,7 +265,7 @@ const fallbackConfig: HomeConfig = {
       change: -4.2,
       changePct: -0.77,
       tvSymbol: "CBOT:ZW1!",
-      delayed: true,
+
       currency: "USD",
     },
     {
@@ -277,7 +275,7 @@ const fallbackConfig: HomeConfig = {
       change: 1.5,
       changePct: 0.36,
       tvSymbol: "CBOT:ZC1!",
-      delayed: true,
+
       currency: "USD",
     },
     {
@@ -287,7 +285,7 @@ const fallbackConfig: HomeConfig = {
       change: 6.1,
       changePct: 0.63,
       tvSymbol: "NYMEX:PL1!",
-      delayed: true,
+
       currency: "USD",
     },
   ],
@@ -419,7 +417,7 @@ async function fetchYahooQuoteV7(
         change,
         changePct,
         tvSymbol: def.tvSymbol,
-        delayed: true,
+  
         currency,
         marketTime: q.regularMarketTime ?? null,
       };
@@ -491,7 +489,7 @@ async function fetchYahooQuoteFromChart(def: {
           change,
           changePct,
           tvSymbol: def.tvSymbol,
-          delayed: true,
+    
           currency,
           marketTime: meta.regularMarketTime ?? null,
         };
@@ -621,7 +619,7 @@ export async function GET() {
         change: stock?.change ?? 0,
         changePct: stock?.changePct ?? 0,
         tvSymbol: d.tvSymbol,
-        delayed: true,
+  
       };
     });
 
@@ -644,7 +642,6 @@ export async function GET() {
         change: quote.change,
         changePct: quote.changePct,
         tvSymbol: quote.tvSymbol,
-        delayed: quote.delayed,
       }))
       .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
 

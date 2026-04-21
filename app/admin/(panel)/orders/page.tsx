@@ -482,7 +482,6 @@ export default function AdminOrdersPage() {
                         <option value="Delivery">Delivery</option>
                         <option value="Intraday">Intraday</option>
                         <option value="F&O">F&amp;O</option>
-                        <option value="Equity Option">Equity Option</option>
                         <option value="CNC">CNC</option>
                         <option value="MIS">MIS</option>
                       </select>
